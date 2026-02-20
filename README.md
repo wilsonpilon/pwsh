@@ -15,6 +15,20 @@ Este repositório reúne exemplos práticos, scripts úteis e guias para trabalh
 
 ---
 
+## 🧰 Scripts Disponiveis
+
+| Script | Descricao |
+|--------|-----------|
+| [Get-Folder-Size.ps1](Get-Folder-Size.ps1) | Lista o tamanho das subpastas e ordena por uso de disco. |
+| [Get-JetBrains.ps1](Get-JetBrains.ps1) | Instala IDEs JetBrains via Winget. |
+| [Get-Sysinfo.ps1](Get-Sysinfo.ps1) | Exibe informacoes do sistema (Windows, CPU, memoria, discos). |
+| [scoop-nerd-fonts.ps1](scoop-nerd-fonts.ps1) | Instala todas as Nerd Fonts disponiveis no bucket do Scoop. |
+| [Set-Windows-Font.ps1](Set-Windows-Font.ps1) | Altera a fonte padrao do Windows e exporta um .reg. |
+| [Sys-Internals.ps1](Sys-Internals.ps1) | Placeholder para automatizar instalacao de Sysinternals. |
+| [Windows-Font-Change.reg](Windows-Font-Change.reg) | Exemplo de arquivo .reg gerado pelo script de fontes. |
+
+---
+
 ## 📋 Pré-requisitos
 
 Antes de começar, certifique-se de que você tem:
@@ -238,29 +252,13 @@ Write-Host "Limpeza concluída!" -ForegroundColor Green
 pwsh/
 ├── README.md                 # Este arquivo
 ├── LICENSE                   # Licença do projeto
-│
-├── scripts/                  # Scripts PowerShell prontos
-│   ├── install-tools.ps1     # Instalar ferramentas úteis
-│   ├── system-info.ps1       # Informações do sistema
-│   └── cleanup.ps1           # Limpeza de arquivos temporários
-│
-├── examples/                 # Exemplos de código
-│   ├── basico/               # Exemplos básicos
-│   │   ├── variáveis.ps1
-│   │   ├── loops.ps1
-│   │   └── funções.ps1
-│   │
-│   └── avancado/             # Exemplos avançados
-│       ├── json-manipulation.ps1
-│       └── rest-api-calls.ps1
-│
-├── docs/                     # Documentação adicional
-│   ├── winget-guide.md       # Guia completo do Winget
-│   ├── scoop-guide.md        # Guia completo do Scoop
-│   └── powershell-tips.md    # Dicas e truques
-│
-└── tools/                    # Scripts de ferramentas CLI
-    └── setup-cli-tools.ps1   # Setup de ferramentas úteis
+├── Get-Folder-Size.ps1       # Tamanho das subpastas
+├── Get-JetBrains.ps1         # Instala IDEs JetBrains
+├── Get-Sysinfo.ps1           # Informacoes do sistema
+├── scoop-nerd-fonts.ps1      # Instala Nerd Fonts via Scoop
+├── Set-Windows-Font.ps1      # Altera fonte padrao do Windows
+├── Sys-Internals.ps1         # Placeholder para Sysinternals
+└── Windows-Font-Change.reg   # Export de alteracoes de fonte
 ```
 
 ---
