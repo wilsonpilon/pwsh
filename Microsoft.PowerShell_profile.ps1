@@ -42,3 +42,15 @@ Set-Alias cat bat
 
 # Inicializa o zoxide (agora você pode usar 'z' em vez de 'cd')
 Invoke-Expression (& { (zoxide init powershell | Out-String) })
+
+# Carrega a integração do fzf com o PowerShell (habilita os atalhos de teclado)
+Import-Module PSFzf
+
+# Configuração visual: layout reverso (barra de busca no topo), bordas e margens
+$env:FZF_DEFAULT_OPTS="--height 40% --layout=reverse --border --margin=1 --padding=1"
+
+# Opcional, mas altamente recomendado: 
+# Se você instalou o 'fd', force o fzf a usá-lo como motor base. 
+# Isso faz com que a busca de arquivos ignore diretórios como .git ou node_modules.
+$env:FZF_DEFAULT_COMMAND="fd --type f --hidden --exclude .git"
+$env:FZF_CTRL_T_COMMAND="$env:FZF_DEFAULT_COMMAND"
