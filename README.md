@@ -17,15 +17,69 @@ Este repositório reúne exemplos práticos, scripts úteis e guias para trabalh
 
 ## 🧰 Scripts Disponiveis
 
+### 📦 Pacotes e Instalação
+
+| Script | Descricao |
+|--------|-----------|
+| [select-winget-upgrades.ps1](select-winget-upgrades.ps1) | Update seletivo: detecta atualizacoes do Winget e/ou Scoop, exibe menu e lista com checkboxes e atualiza os pacotes escolhidos um a um. |
+| [Get-JetBrains.ps1](Get-JetBrains.ps1) | Instala IDEs JetBrains via Winget. |
+| [scoop-nerd-fonts.ps1](scoop-nerd-fonts.ps1) | Instala todas as Nerd Fonts disponiveis no bucket do Scoop. |
+| [install-NerdFonts.ps1](install-NerdFonts.ps1) | Instala as Nerd Fonts `NF-Mono` via Scoop, com fallback para Winget. |
+| [Sys-Internals.ps1](Sys-Internals.ps1) | Placeholder para automatizar instalacao de Sysinternals. |
+| [SysInternals-Manager.ps1](SysInternals-Manager.ps1) | Interface em modo texto (TUI) para baixar, instalar e executar as ferramentas da suite SysInternals. |
+
+### 💾 Disco e Arquivos
+
 | Script | Descricao |
 |--------|-----------|
 | [Get-Folder-Size.ps1](Get-Folder-Size.ps1) | Lista o tamanho das subpastas e ordena por uso de disco. |
-| [Get-JetBrains.ps1](Get-JetBrains.ps1) | Instala IDEs JetBrains via Winget. |
+| [Get-TopSubdirSizes.ps1](Get-TopSubdirSizes.ps1) | Calcula o tamanho de cada subdiretorio de primeiro nivel, com ordenacao configuravel. |
+| [Eject-USB-Drive.ps1](Eject-USB-Drive.ps1) | Lista e ejeta com seguranca flash drives USB (PowerShell 7+). |
+| [Format-WindowsCRLF.ps1](Format-WindowsCRLF.ps1) | Normaliza as quebras de linha de um arquivo para o padrao Windows (CRLF). |
+
+### 🖥️ Sistema e Rede
+
+| Script | Descricao |
+|--------|-----------|
 | [Get-Sysinfo.ps1](Get-Sysinfo.ps1) | Exibe informacoes do sistema (Windows, CPU, memoria, discos). |
-| [scoop-nerd-fonts.ps1](scoop-nerd-fonts.ps1) | Instala todas as Nerd Fonts disponiveis no bucket do Scoop. |
+| [RdpSessionManager.ps1](RdpSessionManager.ps1) | Lista sessoes RDP ativas/desconectadas e permite logoff manual ou em lote (requer Administrador). |
+| [Iniciar-VPN-Empresa.ps1](Iniciar-VPN-Empresa.ps1) | Prepara o ambiente para a VPN corporativa desativando servicos conflitantes (auto-eleva privilegios). |
+
+### 🎨 Aparencia e Ambiente
+
+| Script | Descricao |
+|--------|-----------|
 | [Set-Windows-Font.ps1](Set-Windows-Font.ps1) | Altera a fonte padrao do Windows e exporta um .reg. |
-| [Sys-Internals.ps1](Sys-Internals.ps1) | Placeholder para automatizar instalacao de Sysinternals. |
 | [Windows-Font-Change.reg](Windows-Font-Change.reg) | Exemplo de arquivo .reg gerado pelo script de fontes. |
+| [Microsoft.PowerShell_profile.ps1](Microsoft.PowerShell_profile.ps1) | Perfil do PowerShell com oh-my-posh, atalhos e funcoes utilitarias. |
+
+---
+
+### ⭐ Destaque: `select-winget-upgrades.ps1`
+
+Atualizacao seletiva de programas instalados no Windows.
+
+```powershell
+# Menu interativo (escolhe winget, scoop ou ambos)
+.\select-winget-upgrades.ps1
+
+# Direto em um gerenciador especifico
+.\select-winget-upgrades.ps1 -Manager winget
+.\select-winget-upgrades.ps1 -Manager scoop
+```
+
+Atalhos da lista de selecao:
+
+| Tecla | Acao |
+|-------|------|
+| `↑` / `↓` | Move o cursor |
+| `ESPACO` | Marca/desmarca o pacote |
+| `A` | Marca todos |
+| `N` | Desmarca todos |
+| `ENTER` | Confirma e inicia os upgrades |
+| `ESC` | Cancela |
+
+Os pacotes selecionados sao atualizados um a um e, ao final, e exibido um resumo com sucessos e falhas.
 
 ---
 
@@ -250,15 +304,24 @@ Write-Host "Limpeza concluída!" -ForegroundColor Green
 
 ```
 pwsh/
-├── README.md                 # Este arquivo
-├── LICENSE                   # Licença do projeto
-├── Get-Folder-Size.ps1       # Tamanho das subpastas
-├── Get-JetBrains.ps1         # Instala IDEs JetBrains
-├── Get-Sysinfo.ps1           # Informacoes do sistema
-├── scoop-nerd-fonts.ps1      # Instala Nerd Fonts via Scoop
-├── Set-Windows-Font.ps1      # Altera fonte padrao do Windows
-├── Sys-Internals.ps1         # Placeholder para Sysinternals
-└── Windows-Font-Change.reg   # Export de alteracoes de fonte
+├── README.md                        # Este arquivo
+├── LICENSE                          # Licença do projeto
+├── select-winget-upgrades.ps1       # Update seletivo (Winget/Scoop) com checkboxes
+├── Eject-USB-Drive.ps1              # Ejeta flash drives USB com seguranca
+├── Format-WindowsCRLF.ps1           # Converte quebras de linha para CRLF
+├── Get-Folder-Size.ps1              # Tamanho das subpastas
+├── Get-TopSubdirSizes.ps1           # Tamanho dos subdiretorios de 1o nivel
+├── Get-JetBrains.ps1                # Instala IDEs JetBrains
+├── Get-Sysinfo.ps1                  # Informacoes do sistema
+├── Iniciar-VPN-Empresa.ps1          # Prepara ambiente para VPN corporativa
+├── install-NerdFonts.ps1            # Instala Nerd Fonts (Scoop + fallback Winget)
+├── scoop-nerd-fonts.ps1             # Instala Nerd Fonts via Scoop
+├── Microsoft.PowerShell_profile.ps1 # Perfil do PowerShell (oh-my-posh, aliases)
+├── RdpSessionManager.ps1            # Gerencia sessoes RDP (logoff)
+├── Set-Windows-Font.ps1             # Altera fonte padrao do Windows
+├── Sys-Internals.ps1                # Placeholder para Sysinternals
+├── SysInternals-Manager.ps1         # TUI para a suite SysInternals
+└── Windows-Font-Change.reg          # Export de alteracoes de fonte
 ```
 
 ---
