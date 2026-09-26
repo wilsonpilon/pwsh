@@ -26,7 +26,7 @@ Este repositório reúne exemplos práticos, scripts úteis e guias para trabalh
 | [scoop-nerd-fonts.ps1](scoop-nerd-fonts.ps1) | Instala todas as Nerd Fonts disponiveis no bucket do Scoop. |
 | [install-NerdFonts.ps1](install-NerdFonts.ps1) | Instala as Nerd Fonts `NF-Mono` via Scoop, com fallback para Winget. |
 | [Sys-Internals.ps1](Sys-Internals.ps1) | Placeholder para automatizar instalacao de Sysinternals. |
-| [SysInternals-Manager.ps1](SysInternals-Manager.ps1) | Interface em modo texto (TUI) para baixar, instalar e executar as ferramentas da suite SysInternals. |
+| [SysInternals-Frontend.ps1](SysInternals-Frontend.ps1) | Frontend em modo texto (estilo MS-DOS) para a suite SysInternals: catalogo por categorias sincronizado com a documentacao oficial, resumo e parametros de cada ferramenta, execucao, ajuda local (.chm) e online, instalacao e configuracao. Aceita `--Help`, `--Run`, `--Download`, `--Configure`, `--Update`, `--List`, `--Docs` e `--Path`. |
 
 ### 💾 Disco e Arquivos
 
@@ -320,7 +320,7 @@ pwsh/
 ├── RdpSessionManager.ps1            # Gerencia sessoes RDP (logoff)
 ├── Set-Windows-Font.ps1             # Altera fonte padrao do Windows
 ├── Sys-Internals.ps1                # Placeholder para Sysinternals
-├── SysInternals-Manager.ps1         # TUI para a suite SysInternals
+├── SysInternals-Frontend.ps1        # Frontend TUI da suite SysInternals
 └── Windows-Font-Change.reg          # Export de alteracoes de fonte
 ```
 
