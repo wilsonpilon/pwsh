@@ -83,6 +83,77 @@ Os pacotes selecionados sao atualizados um a um e, ao final, e exibido um resumo
 
 ---
 
+### ⭐ Destaque: `SysInternals-Frontend.ps1`
+
+Frontend em modo texto (estilo MS-DOS / Turbo Vision) para a suite **SysInternals** da Microsoft: navegue pelas ferramentas por categoria, veja o resumo e os parametros de linha de comando ao lado e execute a ferramenta direto do menu.
+
+```powershell
+# Menu interativo
+.\SysInternals-Frontend.ps1
+
+# Ajuda do proprio script
+.\SysInternals-Frontend.ps1 --Help
+
+# Resumo + parametros de uma ferramenta
+.\SysInternals-Frontend.ps1 --Help handle
+
+# Executar uma ferramenta com argumentos
+.\SysInternals-Frontend.ps1 --Run handle -a notepad.exe
+
+# Baixar/atualizar a suite e configurar o diretorio
+.\SysInternals-Frontend.ps1 --Download
+.\SysInternals-Frontend.ps1 --Configure
+.\SysInternals-Frontend.ps1 --Path D:\Tools\SysInternals
+
+# Catalogo e listagens
+.\SysInternals-Frontend.ps1 --Update
+.\SysInternals-Frontend.ps1 --List
+.\SysInternals-Frontend.ps1 --List Rede
+.\SysInternals-Frontend.ps1 --Docs procexp
+```
+
+Parametros da linha de comando (aceitam `-` ou `--`):
+
+| Parametro | Acao |
+|-----------|------|
+| `--Help` | Mostra a ajuda do script |
+| `--Help <ferramenta>` | Resumo, categoria, executavel e parametros da ferramenta |
+| `--Run <ferramenta> [args]` | Executa a ferramenta com os argumentos informados |
+| `--Download` | Baixa e instala/atualiza a suite SysInternals |
+| `--Configure` | Abre a tela de configuracao |
+| `--Path <diretorio>` | Usa outro diretorio de instalacao nesta execucao |
+| `--Update` | Atualiza o catalogo pela documentacao oficial |
+| `--List [categoria]` | Lista as ferramentas do catalogo |
+| `--Docs <ferramenta>` | Abre a documentacao online da ferramenta |
+
+Teclas do menu interativo:
+
+| Tecla | Acao |
+|-------|------|
+| `↑` / `↓` | Navega pelas ferramentas |
+| `←` / `→` / `TAB` | Troca de categoria |
+| `ENTER` | Executa a ferramenta selecionada |
+| `F1` | Ajuda completa (resumo + parametros, rolavel) |
+| `F2` | Documentacao online (Microsoft Learn) |
+| `F3` | Abre o arquivo de ajuda local (`.chm` / `.txt`) |
+| `F4` | Executa pedindo argumentos |
+| `F5` | Executa |
+| `F6` | Buscar por nome ou descricao |
+| `F7` | Instalar / atualizar a suite |
+| `F8` | Configurar (diretorio, URLs, validade do catalogo) |
+| `F9` | Atualizar o catalogo agora |
+| `F10` | Abre a barra de menus (`Alt+F`, `Alt+S`, `Alt+C`, `Alt+A` abrem direto) |
+| `?` | Lista de atalhos |
+| `Alt+X` / `ESC` | Sai |
+
+Detalhes:
+
+- Diretorio padrao da suite: `C:\dos\SysInternals` (alteravel por `--Path` ou pela tela de configuracao).
+- As descricoes e versoes vem da documentacao oficial (`MicrosoftDocs/sysinternals`), com cache local em `%APPDATA%\SysInternalsFrontend` e atualizacao automatica a cada 7 dias.
+- Os parametros de cada ferramenta de console sao lidos do proprio executavel (`-?`) e ficam em cache.
+
+---
+
 ## 📋 Pré-requisitos
 
 Antes de começar, certifique-se de que você tem:
