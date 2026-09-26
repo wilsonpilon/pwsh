@@ -6,7 +6,8 @@ if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
     
     # Verifica se o ExecutionPolicy permite a instalação
     Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-    
+    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
     # Instala o Scoop
     Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
     
