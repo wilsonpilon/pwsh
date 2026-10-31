@@ -36,6 +36,7 @@ Este repositório reúne exemplos práticos, scripts úteis e guias para trabalh
 | [Get-TopSubdirSizes.ps1](Get-TopSubdirSizes.ps1) | Calcula o tamanho de cada subdiretorio de primeiro nivel, com ordenacao configuravel. |
 | [Eject-USB-Drive.ps1](Eject-USB-Drive.ps1) | Lista e ejeta com seguranca flash drives USB (PowerShell 7+). |
 | [Format-WindowsCRLF.ps1](Format-WindowsCRLF.ps1) | Normaliza as quebras de linha de um arquivo para o padrao Windows (CRLF). |
+| [Do-Unix.ps1](Do-Unix.ps1) | Reune em um unico script os comandos `head`, `tail`, `wc`, `tr`, `less` e `grep`. |
 
 ### 🖥️ Sistema e Rede
 
@@ -52,6 +53,29 @@ Este repositório reúne exemplos práticos, scripts úteis e guias para trabalh
 | [Set-Windows-Font.ps1](Set-Windows-Font.ps1) | Altera a fonte padrao do Windows e exporta um .reg. |
 | [Windows-Font-Change.reg](Windows-Font-Change.reg) | Exemplo de arquivo .reg gerado pelo script de fontes. |
 | [Microsoft.PowerShell_profile.ps1](Microsoft.PowerShell_profile.ps1) | Perfil do PowerShell com oh-my-posh, atalhos e funcoes utilitarias. |
+
+---
+
+### ⭐ Destaque: `Do-Unix.ps1`
+
+Emula os usos mais comuns de pequenos utilitarios Unix, aceitando o comando como primeiro argumento. Os nomes dos comandos nao diferenciam maiusculas de minusculas; a entrada pode vir de arquivos ou do pipeline do PowerShell.
+
+```powershell
+# Primeiras e ultimas linhas
+.\Do-Unix.ps1 head -n 5 .\arquivo.log
+.\Do-Unix.ps1 tail -n 20 .\arquivo.log
+Get-Content .\arquivo.log | .\Do-Unix.ps1 tail -n 5
+
+# Contagens de linhas, palavras e bytes; grep com numero de linha
+.\Do-Unix.ps1 wc -lwmc .\arquivo.log
+Get-Content .\arquivo.log | .\Do-Unix.ps1 grep -in "erro"
+
+# Transliteration e visualizacao paginada
+Get-Content .\arquivo.txt -Raw | .\Do-Unix.ps1 tr "a-z" "A-Z"
+.\Do-Unix.ps1 less .\arquivo.log
+```
+
+Opcoes implementadas: `head`/`tail` aceitam `-n`, `--lines`, `-c`, `--bytes`, `-q` e `-v`; `wc`, `-l`, `-w`, `-m` e `-c`; `tr`, `-d` e `-s`, com intervalos como `a-z`; `grep`, `-i`, `-v`, `-n`, `-c`, `-l`, `-h`, `-w`, `-x`, `-F`, `-e` e `-m`. O `less` usa o paginador integrado do PowerShell; atalhos interativos e acompanhamento `tail -f` nao fazem parte desta versao.
 
 ---
 
