@@ -60,6 +60,8 @@ Este repositório reúne exemplos práticos, scripts úteis e guias para trabalh
 
 Emula os usos mais comuns de pequenos utilitarios Unix, aceitando o comando como primeiro argumento. Os nomes dos comandos nao diferenciam maiusculas de minusculas; a entrada pode vir de arquivos ou do pipeline do PowerShell.
 
+Os caminhos de arquivos sao literais e relativos ao diretorio atual do PowerShell, inclusive em unidades criadas com `New-PSDrive`. Falhas de leitura interrompem o comando sem gerar erros adicionais de acesso a um leitor nulo.
+
 ```powershell
 # Primeiras e ultimas linhas
 .\Do-Unix.ps1 head -n 5 .\arquivo.log
@@ -524,5 +526,3 @@ Encontrou um problema? Dicas e sugestões:
 ---
 
 **Desenvolvido com ❤️ para a comunidade PowerShell**
-
-

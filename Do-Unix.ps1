@@ -19,7 +19,9 @@ $hasPipelineInput = $pipelineLines.Count -gt 0
 function Read-TextFile {
     param([Parameter(Mandatory = $true)][string] $Path)
 
-    $reader = [System.IO.StreamReader]::new($Path, $true)
+    $ErrorActionPreference = 'Stop'
+    $filePath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+    $reader = [System.IO.StreamReader]::new($filePath, $true)
     try {
         return $reader.ReadToEnd()
     }
