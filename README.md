@@ -36,6 +36,7 @@ Este repositório reúne exemplos práticos, scripts úteis e guias para trabalh
 | [Get-TopSubdirSizes.ps1](Get-TopSubdirSizes.ps1) | Calcula o tamanho de cada subdiretorio de primeiro nivel, com ordenacao configuravel. |
 | [Eject-USB-Drive.ps1](Eject-USB-Drive.ps1) | Lista e ejeta com seguranca flash drives USB (PowerShell 7+). |
 | [Format-WindowsCRLF.ps1](Format-WindowsCRLF.ps1) | Normaliza as quebras de linha de um arquivo para o padrao Windows (CRLF). |
+| [Do-Unix.ps1](Do-Unix.ps1) | Reune em um unico script os comandos `head`, `tail`, `wc`, `tr`, `less` e `grep`. |
 
 ### 🖥️ Sistema e Rede
 
@@ -89,6 +90,31 @@ automaticamente o perfil no menu do navegador.
 
 Testes offline, sem acessar contas nem fechar navegadores:
 `pwsh -NoProfile -File .\Tests\SincronizadorNavegadores.Tests.ps1`.
+
+---
+
+### ⭐ Destaque: `Do-Unix.ps1`
+
+Emula os usos mais comuns de pequenos utilitarios Unix, aceitando o comando como primeiro argumento. Os nomes dos comandos nao diferenciam maiusculas de minusculas; a entrada pode vir de arquivos ou do pipeline do PowerShell.
+
+Os caminhos de arquivos sao literais e relativos ao diretorio atual do PowerShell, inclusive em unidades criadas com `New-PSDrive`. Falhas de leitura interrompem o comando sem gerar erros adicionais de acesso a um leitor nulo.
+
+```powershell
+# Primeiras e ultimas linhas
+.\Do-Unix.ps1 head -n 5 .\arquivo.log
+.\Do-Unix.ps1 tail -n 20 .\arquivo.log
+Get-Content .\arquivo.log | .\Do-Unix.ps1 tail -n 5
+
+# Contagens de linhas, palavras e bytes; grep com numero de linha
+.\Do-Unix.ps1 wc -lwmc .\arquivo.log
+Get-Content .\arquivo.log | .\Do-Unix.ps1 grep -in "erro"
+
+# Transliteration e visualizacao paginada
+Get-Content .\arquivo.txt -Raw | .\Do-Unix.ps1 tr "a-z" "A-Z"
+.\Do-Unix.ps1 less .\arquivo.log
+```
+
+Opcoes implementadas: `head`/`tail` aceitam `-n`, `--lines`, `-c`, `--bytes`, `-q` e `-v`; `wc`, `-l`, `-w`, `-m` e `-c`; `tr`, `-d` e `-s`, com intervalos como `a-z`; `grep`, `-i`, `-v`, `-n`, `-c`, `-l`, `-h`, `-w`, `-x`, `-F`, `-e` e `-m`. O `less` usa o paginador integrado do PowerShell; atalhos interativos e acompanhamento `tail -f` nao fazem parte desta versao.
 
 ---
 
@@ -188,6 +214,17 @@ Detalhes:
 - Diretorio padrao da suite: `C:\dos\SysInternals` (alteravel por `--Path` ou pela tela de configuracao).
 - As descricoes e versoes vem da documentacao oficial (`MicrosoftDocs/sysinternals`), com cache local em `%APPDATA%\SysInternalsFrontend` e atualizacao automatica a cada 7 dias.
 - Os parametros de cada ferramenta de console sao lidos do proprio executavel (`-?`) e ficam em cache.
+
+---
+
+## 🖼️ Exemplos em execução
+
+Saídas ilustrativas de ferramentas deste repositório, executadas com dados de exemplo:
+
+<p align="center">
+  <img src="images/Do-Unix-Grep.svg" alt="Exemplo do Do-Unix filtrando linhas com PowerShell" width="49%">
+  <img src="images/SysInternals-Catalog.svg" alt="Exemplo do catálogo SysInternals-Frontend" width="49%">
+</p>
 
 ---
 
@@ -538,4 +575,26 @@ Encontrou um problema? Dicas e sugestões:
 
 **Desenvolvido com ❤️ para a comunidade PowerShell**
 
+---
 
+![Wilson Hacker](./images/Wilson-Hacker-Small.png)
+
+## ⚠️ Manifesto do Repositório: Projetos Estritamente Pessoais ⚠️
+
+> *Se você tropeçou neste GitHub ou site, saiba que provavelmente foi por acidente, já que eu não faço a menor questão de divulgar o que construo por aqui.*
+
+Este espaço é o meu **asilo digital**. Aqui você vai encontrar uma coleção caótica de utilitários, ferramentas, linguagens, jogos e remakes voltados para MSX, ZX-81, ZX-Spectrum e IBM-PC clássico. Antes que você comece a analisar o código ou tentar rodar alguma coisa, vamos deixar as expectativas bem alinhadas:
+
+* 🛑 **Inutilidade Pública:** Estes projetos são de cunho estritamente pessoal. Em momento algum a minha ideia foi criar algo inovador, revolucionário ou "útil de verdade" para a humanidade. Eles existem única e exclusivamente porque me interessam.
+
+* 🤷‍♂️ **Garantia Zero (As-Is):** Se, por algum milagre, você achar algo útil no meio disso tudo, sinta-se à vontade para usar, clonar ou modificar. Mas fique avisado: **não há absolutamente nenhuma garantia**. Se rodar, ótimo. Se queimar a sua máquina, o problema é seu.
+
+* 🤖 **Código, IA e Terapia:** Não tenho a menor vergonha de misturar o meu próprio conhecimento de décadas com Inteligência Artificial para fazer as coisas funcionarem. O motivo é simples: isso aqui é para diversão e alívio de estresse. O objetivo final é o meu bem-estar, não a perfeição algorítmica ou agradar puristas.
+
+* 🚫 **Ouvidoria Fechada:** Sugestões? Elas podem (ou não) ser bem-vindas, dependendo puramente do meu humor no dia. Já as críticas e "cagadas de regra", peço a gentileza de que as guarde com muito carinho para si mesmo. Se achou o código ineficiente, mal documentado ou fora dos seus padrões, recomendo fortemente que você abra o seu próprio editor, faça melhor do zero e seja muito feliz no seu próprio repositório.
+
+---
+
+> *Resumindo: minha única intenção é curtir meus projetos em paz e no meu próprio ritmo. Aproveite o código (ou não) e siga o seu rumo.* ✌️
+
+---
