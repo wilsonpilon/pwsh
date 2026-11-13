@@ -53,6 +53,43 @@ Este repositório reúne exemplos práticos, scripts úteis e guias para trabalh
 | [Windows-Font-Change.reg](Windows-Font-Change.reg) | Exemplo de arquivo .reg gerado pelo script de fontes. |
 | [Microsoft.PowerShell_profile.ps1](Microsoft.PowerShell_profile.ps1) | Perfil do PowerShell com oh-my-posh, atalhos e funcoes utilitarias. |
 
+### Navegadores e OneDrive
+
+Execute `.\SincronizadorNavegadores.ps1` para sincronizar perfis do Chrome,
+Edge e Vivaldi com duas contas pessoais e uma profissional do OneDrive.
+
+- Use **C** para identificar cada conta por nome ou e-mail e **L** para entrar
+  nela. O nome informado e um rotulo: confira a conta Microsoft ao autorizar no
+  navegador. O login usa Rclone e oferece instalacao via Winget se necessario.
+- Os perfis sao descobertos automaticamente, com o nome real e, quando
+  disponivel, o e-mail registrado pelo navegador. Perfis novos tambem aparecem.
+  Sem metadados, o nome configurado e usado; na ausencia dele, a pasta e
+  mostrada explicitamente como perfil sem nome.
+- Use **V** para escolher ou trocar a conta de cada perfil. Vinculos existentes
+  em [config-navegadores.json](config-navegadores.json) sao preservados.
+- Use **1** para enviar ou **2** para restaurar. Selecione um perfil, varios
+  numeros separados por virgula ou **T** para todos. Perfis configurados mas
+  ausentes neste PC continuam disponiveis para restauracao.
+- Nomes das contas e vinculos ficam salvos no JSON ao lado do script; tokens
+  de acesso ficam na configuracao do Rclone, nao nesse JSON. Nao publique
+  nomes/e-mails pessoais ao compartilhar a configuracao.
+
+**Atencao:** e uma sincronizacao manual em uma direcao, nao uma mesclagem nem
+sincronizacao continua. Arquivos extras no destino sao apagados por `rclone sync`.
+Confira o resumo e digite `CONFIRMAR`; somente entao os navegadores envolvidos
+serao fechados. Caches sao excluidos da transferencia. Falhas interrompem a
+operacao com erro, sem anunciar sucesso.
+
+Senhas, cookies e sessoes podem estar criptografados e vinculados ao Windows,
+ao usuario ou ao computador de origem; copiar o perfil nao garante que esses
+dados funcionem em outro PC. Use a sincronizacao nativa do navegador para esses
+dados. Ao restaurar um perfil ausente, crie primeiro um perfil pelo navegador
+e vincule sua pasta ao destino correto no JSON; copiar uma pasta nao registra
+automaticamente o perfil no menu do navegador.
+
+Testes offline, sem acessar contas nem fechar navegadores:
+`pwsh -NoProfile -File .\Tests\SincronizadorNavegadores.Tests.ps1`.
+
 ---
 
 ### ⭐ Destaque: `select-winget-upgrades.ps1`

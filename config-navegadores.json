@@ -1,0 +1,75 @@
+{
+  "Contas": [
+    {
+      "Remote": "onedrive_pessoal_1",
+      "NomeExibicao": "OneDrive pessoal 1",
+      "Identificada": false
+    },
+    {
+      "Remote": "onedrive_pessoal_2",
+      "NomeExibicao": "OneDrive pessoal 2",
+      "Identificada": false
+    },
+    {
+      "Remote": "onedrive_profissional",
+      "NomeExibicao": "OneDrive profissional",
+      "Identificada": false
+    }
+  ],
+  "Mapeamentos": [
+    {
+      "Navegador": "Chrome",
+      "PerfilPasta": "Default",
+      "NomeExibicao": "Principal (Pessoal 1)",
+      "DestinoNuvem": "onedrive_pessoal_1:Backups_Navegadores/Chrome/Default"
+    },
+    {
+      "Navegador": "Chrome",
+      "PerfilPasta": "Profile 1",
+      "NomeExibicao": "Profissional",
+      "DestinoNuvem": "onedrive_profissional:Backups_Navegadores/Chrome/Profissional"
+    },
+    {
+      "Navegador": "Chrome",
+      "PerfilPasta": "Profile 2",
+      "NomeExibicao": "Projeto (Pessoal 2)",
+      "DestinoNuvem": "onedrive_pessoal_2:Backups_Navegadores/Chrome/Projeto"
+    },
+    {
+      "Navegador": "Edge",
+      "PerfilPasta": "Default",
+      "NomeExibicao": "Principal (Pessoal 1)",
+      "DestinoNuvem": "onedrive_pessoal_1:Backups_Navegadores/Edge/Default"
+    },
+    {
+      "Navegador": "Edge",
+      "PerfilPasta": "Profile 1",
+      "NomeExibicao": "Profissional",
+      "DestinoNuvem": "onedrive_profissional:Backups_Navegadores/Edge/Profissional"
+    },
+    {
+      "Navegador": "Edge",
+      "PerfilPasta": "Profile 2",
+      "NomeExibicao": "Projeto (Pessoal 2)",
+      "DestinoNuvem": "onedrive_pessoal_2:Backups_Navegadores/Edge/Projeto"
+    },
+    {
+      "Navegador": "Vivaldi",
+      "PerfilPasta": "Default",
+      "NomeExibicao": "Principal (Pessoal 1)",
+      "DestinoNuvem": "onedrive_pessoal_1:Backups_Navegadores/Vivaldi/Default"
+    },
+    {
+      "Navegador": "Vivaldi",
+      "PerfilPasta": "Profile 1",
+      "NomeExibicao": "Profissional",
+      "DestinoNuvem": "onedrive_profissional:Backups_Navegadores/Vivaldi/Profissional"
+    },
+    {
+      "Navegador": "Vivaldi",
+      "PerfilPasta": "Profile 2",
+      "NomeExibicao": "Projeto (Pessoal 2)",
+      "DestinoNuvem": "onedrive_pessoal_2:Backups_Navegadores/Vivaldi/Projeto"
+    }
+  ]
+}
