@@ -1,22 +1,32 @@
-# BrowserProfileSync 0.2.0
+# BrowserProfileSync 0.2.1
 
-Primeira versao de teste com backup real para Edge, Chrome e Vivaldi.
+Versao de teste com `doctor`, `backup` e `verify`.
 
-## Seguranca
-- `doctor` continua somente leitura.
-- `backup` bloqueia se algum navegador suportado estiver em execucao.
-- O diretorio-base de destino deve existir.
-- Cada execucao cria uma nova pasta `<COMPUTADOR>-yyyyMMdd-HHmmss`.
-- Backups anteriores nunca sao sobrescritos ou apagados.
-- Falhas preservam a pasta parcial e geram `manifest.incomplete.json`.
-- Restore ainda nao existe.
+## Novo em 0.2.1
+O comando `verify` reabre um backup concluido e valida cada item contra `manifest.json`.
 
-## Teste
+A verificacao desta versao usa os metadados que a 0.2.0 ja gravou no manifesto:
+- existencia de cada item;
+- quantidade de arquivos;
+- total de bytes.
+
+Isto permite verificar inclusive o primeiro backup `XPS-20261123-132616` criado pela 0.2.0.
+
+> SHA-256 por arquivo ainda nao pode ser retroativamente validado no backup 0.2.0 porque os hashes nao existem no manifesto original. Uma versao futura pode gravar hashes durante o backup e usa-los no `verify`.
+
+## Testar o backup existente
 ```powershell
-New-Item -ItemType Directory -Path D:\BrowserProfileSync -Force
-pwsh -File .\BrowserProfileSync.ps1 backup -Destination D:\BrowserProfileSync
+pwsh -File .\BrowserProfileSync.ps1 verify `
+    -Backup D:\BrowserProfileSync\XPS-20261123-132616
 ```
 
-Primeiro teste com Edge/Vivaldi abertos: deve bloquear sem copiar. Depois feche-os, confirme com `Get-Process msedge,chrome,vivaldi -ErrorAction SilentlyContinue` e execute novamente.
+Resultado esperado:
+```text
+Verify                                  [PASS]
+Files verified                          [INFO]
+Data verified                           [INFO]
+Integrity method                        [INFO]
+```
 
-A verificacao 0.2.0 compara quantidade de arquivos e total de bytes de cada item. Hash criptografico fica para o futuro comando `verify`.
+## Teste de deteccao de alteracao
+Depois de validar o backup original, faca uma COPIA da pasta de backup para testes. Nao altere o primeiro backup real. Se um arquivo for removido da copia, `verify` deve retornar FAIL.
