@@ -5,14 +5,19 @@
     BrowserProfileSync - Browser profile backup and restore utility.
 
 .DESCRIPTION
-    Version 0.1.0
-    Initial skeleton of the BrowserProfileSync diagnostic system.
+    Version 0.1.1
+
+    Diagnostic foundation for BrowserProfileSync.
+
+    Implemented in this version:
+      - PowerShell runtime detection
+      - Windows operating system detection
 
     This version does not modify, copy, or delete any browser data.
 
 .NOTES
     Project : BrowserProfileSync
-    Version : 0.1.0
+    Version : 0.1.1
 #>
 
 [CmdletBinding()]
@@ -29,7 +34,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Script:AppName = 'BrowserProfileSync'
-$Script:Version = '0.1.0'
+$Script:Version = '0.1.1'
 
 
 # ---------------------------------------------------------------------------
@@ -81,33 +86,109 @@ function Write-BpsCheck {
 
 
 # ---------------------------------------------------------------------------
-# Doctor checks
-#
-# Version 0.1.0 contains placeholders only.
-# Each function will later contain one independent diagnostic check.
+# PowerShell diagnostics
 # ---------------------------------------------------------------------------
 
 function Test-BpsPowerShell {
-    Write-BpsCheck `
-        -Name 'PowerShell' `
-        -Result 'TODO' `
-        -Detail 'PowerShell 7 detection not implemented yet.'
+
+    try {
+        $version = $PSVersionTable.PSVersion
+        $edition = $PSVersionTable.PSEdition
+
+        $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
+
+        if ($version.Major -lt 7) {
+            Write-BpsCheck `
+                -Name 'PowerShell' `
+                -Result 'FAIL' `
+                -Detail "Version $version | $edition | $architecture"
+
+            return
+        }
+
+        if ($edition -ne 'Core') {
+            Write-BpsCheck `
+                -Name 'PowerShell' `
+                -Result 'WARN' `
+                -Detail "Version $version | $edition | $architecture"
+
+            return
+        }
+
+        Write-BpsCheck `
+            -Name 'PowerShell' `
+            -Result 'PASS' `
+            -Detail "Version $version | $edition | $architecture"
+    }
+    catch {
+        Write-BpsCheck `
+            -Name 'PowerShell' `
+            -Result 'FAIL' `
+            -Detail $_.Exception.Message
+    }
 }
 
+
+# ---------------------------------------------------------------------------
+# Windows diagnostics
+# ---------------------------------------------------------------------------
 
 function Test-BpsWindows {
-    Write-BpsCheck `
-        -Name 'Windows' `
-        -Result 'TODO' `
-        -Detail 'Windows detection not implemented yet.'
+
+    try {
+        if (-not $IsWindows) {
+            Write-BpsCheck `
+                -Name 'Windows' `
+                -Result 'FAIL' `
+                -Detail 'BrowserProfileSync currently requires Windows.'
+
+            return
+        }
+
+        $os = Get-CimInstance -ClassName Win32_OperatingSystem
+
+        $caption = $os.Caption
+        $version = $os.Version
+        $build = $os.BuildNumber
+        $architecture = $os.OSArchitecture
+        $computerName = [System.Environment]::MachineName
+
+        Write-BpsCheck `
+            -Name 'Windows' `
+            -Result 'PASS' `
+            -Detail "$caption | Version $version | Build $build | $architecture"
+
+        Write-BpsCheck `
+            -Name 'Computer' `
+            -Result 'INFO' `
+            -Detail $computerName
+    }
+    catch {
+        Write-BpsCheck `
+            -Name 'Windows' `
+            -Result 'FAIL' `
+            -Detail $_.Exception.Message
+    }
 }
 
+
+# ---------------------------------------------------------------------------
+# Placeholder diagnostics
+# ---------------------------------------------------------------------------
 
 function Test-BpsOneDrive {
     Write-BpsCheck `
         -Name 'OneDrive' `
         -Result 'TODO' `
         -Detail 'OneDrive detection not implemented yet.'
+}
+
+
+function Test-BpsBackupLocation {
+    Write-BpsCheck `
+        -Name 'Backup location' `
+        -Result 'TODO' `
+        -Detail 'Backup path validation not implemented yet.'
 }
 
 
@@ -127,14 +208,6 @@ function Test-BpsChrome {
 }
 
 
-function Test-BpsBrowserProfiles {
-    Write-BpsCheck `
-        -Name 'Browser profiles' `
-        -Result 'TODO' `
-        -Detail 'Profile discovery not implemented yet.'
-}
-
-
 function Test-BpsBrowserProcesses {
     Write-BpsCheck `
         -Name 'Browser processes' `
@@ -143,11 +216,11 @@ function Test-BpsBrowserProcesses {
 }
 
 
-function Test-BpsBackupLocation {
+function Test-BpsBrowserProfiles {
     Write-BpsCheck `
-        -Name 'Backup location' `
+        -Name 'Browser profiles' `
         -Result 'TODO' `
-        -Detail 'Backup path validation not implemented yet.'
+        -Detail 'Profile discovery not implemented yet.'
 }
 
 
@@ -199,7 +272,7 @@ function Invoke-BpsDoctor {
     Write-Host ('=' * 60) -ForegroundColor DarkGray
 
     Write-Host ''
-    Write-Host 'Doctor skeleton completed.' -ForegroundColor Cyan
+    Write-Host 'Doctor completed.' -ForegroundColor Cyan
     Write-Host 'No files were modified.' -ForegroundColor DarkGray
     Write-Host ''
 }
