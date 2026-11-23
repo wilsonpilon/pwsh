@@ -1,45 +1,14 @@
 #requires -Version 7.0
-
-<#
-.SYNOPSIS
-    BrowserProfileSync - Browser profile backup and restore utility.
-
-.DESCRIPTION
-    Version 0.1.1
-
-    Diagnostic foundation for BrowserProfileSync.
-
-    Implemented in this version:
-      - PowerShell runtime detection
-      - Windows operating system detection
-
-    This version does not modify, copy, or delete any browser data.
-
-.NOTES
-    Project : BrowserProfileSync
-    Version : 0.1.1
-#>
-
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet(
-        'doctor',
-        'help'
-    )]
+    [ValidateSet('doctor','help')]
     [string]$Command = 'help'
 )
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
 $Script:AppName = 'BrowserProfileSync'
-$Script:Version = '0.1.1'
-
-
-# ---------------------------------------------------------------------------
-# Console helpers
-# ---------------------------------------------------------------------------
+$Script:Version = '0.1.2'
 
 function Write-BpsHeader {
     Write-Host ''
@@ -47,289 +16,101 @@ function Write-BpsHeader {
     Write-Host ('=' * 60) -ForegroundColor DarkGray
     Write-Host ''
 }
-
-
 function Write-BpsCheck {
     param(
-        [Parameter(Mandatory)]
-        [string]$Name,
-
-        [Parameter(Mandatory)]
-        [ValidateSet(
-            'PASS',
-            'WARN',
-            'FAIL',
-            'INFO',
-            'TODO'
-        )]
-        [string]$Result,
-
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][ValidateSet('PASS','WARN','FAIL','INFO','TODO')][string]$Result,
         [string]$Detail = ''
     )
-
-    $color = switch ($Result) {
-        'PASS' { 'Green' }
-        'WARN' { 'Yellow' }
-        'FAIL' { 'Red' }
-        'INFO' { 'Cyan' }
-        'TODO' { 'DarkYellow' }
-        default { 'White' }
-    }
-
+    $color = switch ($Result) { 'PASS' {'Green'} 'WARN' {'Yellow'} 'FAIL' {'Red'} 'INFO' {'Cyan'} 'TODO' {'DarkYellow'} default {'White'} }
     Write-Host ('{0,-22}' -f $Name) -NoNewline
     Write-Host ('{0,-8}' -f "[$Result]") -ForegroundColor $color
-
-    if (-not [string]::IsNullOrWhiteSpace($Detail)) {
-        Write-Host (' ' * 24 + $Detail) -ForegroundColor DarkGray
-    }
+    if (-not [string]::IsNullOrWhiteSpace($Detail)) { Write-Host (' ' * 24 + $Detail) -ForegroundColor DarkGray }
 }
-
-
-# ---------------------------------------------------------------------------
-# PowerShell diagnostics
-# ---------------------------------------------------------------------------
-
 function Test-BpsPowerShell {
-
     try {
         $version = $PSVersionTable.PSVersion
         $edition = $PSVersionTable.PSEdition
-
         $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
-
-        if ($version.Major -lt 7) {
-            Write-BpsCheck `
-                -Name 'PowerShell' `
-                -Result 'FAIL' `
-                -Detail "Version $version | $edition | $architecture"
-
-            return
-        }
-
-        if ($edition -ne 'Core') {
-            Write-BpsCheck `
-                -Name 'PowerShell' `
-                -Result 'WARN' `
-                -Detail "Version $version | $edition | $architecture"
-
-            return
-        }
-
-        Write-BpsCheck `
-            -Name 'PowerShell' `
-            -Result 'PASS' `
-            -Detail "Version $version | $edition | $architecture"
-    }
-    catch {
-        Write-BpsCheck `
-            -Name 'PowerShell' `
-            -Result 'FAIL' `
-            -Detail $_.Exception.Message
-    }
+        if ($version.Major -lt 7) { Write-BpsCheck -Name 'PowerShell' -Result 'FAIL' -Detail "Version $version | $edition | $architecture"; return }
+        if ($edition -ne 'Core') { Write-BpsCheck -Name 'PowerShell' -Result 'WARN' -Detail "Version $version | $edition | $architecture"; return }
+        Write-BpsCheck -Name 'PowerShell' -Result 'PASS' -Detail "Version $version | $edition | $architecture"
+    } catch { Write-BpsCheck -Name 'PowerShell' -Result 'FAIL' -Detail $_.Exception.Message }
 }
-
-
-# ---------------------------------------------------------------------------
-# Windows diagnostics
-# ---------------------------------------------------------------------------
-
 function Test-BpsWindows {
-
     try {
-        if (-not $IsWindows) {
-            Write-BpsCheck `
-                -Name 'Windows' `
-                -Result 'FAIL' `
-                -Detail 'BrowserProfileSync currently requires Windows.'
-
-            return
-        }
-
+        if (-not $IsWindows) { Write-BpsCheck -Name 'Windows' -Result 'FAIL' -Detail 'BrowserProfileSync currently requires Windows.'; return }
         $os = Get-CimInstance -ClassName Win32_OperatingSystem
-
-        $caption = $os.Caption
-        $version = $os.Version
-        $build = $os.BuildNumber
-        $architecture = $os.OSArchitecture
         $computerName = [System.Environment]::MachineName
-
-        Write-BpsCheck `
-            -Name 'Windows' `
-            -Result 'PASS' `
-            -Detail "$caption | Version $version | Build $build | $architecture"
-
-        Write-BpsCheck `
-            -Name 'Computer' `
-            -Result 'INFO' `
-            -Detail $computerName
-    }
-    catch {
-        Write-BpsCheck `
-            -Name 'Windows' `
-            -Result 'FAIL' `
-            -Detail $_.Exception.Message
-    }
+        Write-BpsCheck -Name 'Windows' -Result 'PASS' -Detail "$($os.Caption) | Version $($os.Version) | Build $($os.BuildNumber) | $($os.OSArchitecture)"
+        Write-BpsCheck -Name 'Computer' -Result 'INFO' -Detail $computerName
+    } catch { Write-BpsCheck -Name 'Windows' -Result 'FAIL' -Detail $_.Exception.Message }
 }
-
-
-# ---------------------------------------------------------------------------
-# Placeholder diagnostics
-# ---------------------------------------------------------------------------
-
+function Get-BpsOneDriveRoots {
+    $roots = [System.Collections.Generic.List[object]]::new()
+    $candidates = @(
+        @{ Variable = 'OneDriveConsumer'; Type = 'Personal' },
+        @{ Variable = 'OneDriveCommercial'; Type = 'Business' },
+        @{ Variable = 'OneDrive'; Type = 'Unknown' }
+    )
+    foreach ($candidate in $candidates) {
+        $value = [System.Environment]::GetEnvironmentVariable($candidate.Variable, [System.EnvironmentVariableTarget]::Process)
+        if ([string]::IsNullOrWhiteSpace($value)) { continue }
+        $roots.Add([PSCustomObject]@{ Type=$candidate.Type; Path=$value; Source=$candidate.Variable; Exists=(Test-Path -LiteralPath $value -PathType Container) })
+    }
+    $uniqueRoots = @{}
+    foreach ($root in $roots) {
+        $normalizedPath = $root.Path.TrimEnd('\')
+        if (-not $uniqueRoots.ContainsKey($normalizedPath)) {
+            $uniqueRoots[$normalizedPath] = [PSCustomObject]@{ Type=$root.Type; Path=$normalizedPath; Sources=@($root.Source); Exists=$root.Exists }
+            continue
+        }
+        $existing = $uniqueRoots[$normalizedPath]
+        $existing.Sources += $root.Source
+        if (($existing.Type -eq 'Unknown') -and ($root.Type -ne 'Unknown')) { $existing.Type = $root.Type }
+    }
+    return @($uniqueRoots.Values | Sort-Object Type, Path)
+}
 function Test-BpsOneDrive {
-    Write-BpsCheck `
-        -Name 'OneDrive' `
-        -Result 'TODO' `
-        -Detail 'OneDrive detection not implemented yet.'
+    try {
+        $roots = @(Get-BpsOneDriveRoots)
+        if ($roots.Count -eq 0) { Write-BpsCheck -Name 'OneDrive' -Result 'WARN' -Detail 'No OneDrive roots were detected.'; return }
+        Write-BpsCheck -Name 'OneDrive' -Result 'PASS' -Detail "$($roots.Count) root(s) detected."
+        foreach ($root in $roots) {
+            $status = if ($root.Exists) { 'PASS' } else { 'WARN' }
+            Write-BpsCheck -Name "  $($root.Type)" -Result $status -Detail $root.Path
+            Write-BpsCheck -Name '    Source' -Result 'INFO' -Detail ($root.Sources -join ', ')
+        }
+    } catch { Write-BpsCheck -Name 'OneDrive' -Result 'FAIL' -Detail $_.Exception.Message }
 }
-
-
-function Test-BpsBackupLocation {
-    Write-BpsCheck `
-        -Name 'Backup location' `
-        -Result 'TODO' `
-        -Detail 'Backup path validation not implemented yet.'
-}
-
-
-function Test-BpsEdge {
-    Write-BpsCheck `
-        -Name 'Microsoft Edge' `
-        -Result 'TODO' `
-        -Detail 'Edge detection not implemented yet.'
-}
-
-
-function Test-BpsChrome {
-    Write-BpsCheck `
-        -Name 'Google Chrome' `
-        -Result 'TODO' `
-        -Detail 'Chrome detection not implemented yet.'
-}
-
-
-function Test-BpsBrowserProcesses {
-    Write-BpsCheck `
-        -Name 'Browser processes' `
-        -Result 'TODO' `
-        -Detail 'Process detection not implemented yet.'
-}
-
-
-function Test-BpsBrowserProfiles {
-    Write-BpsCheck `
-        -Name 'Browser profiles' `
-        -Result 'TODO' `
-        -Detail 'Profile discovery not implemented yet.'
-}
-
-
-function Test-BpsLocalStorage {
-    Write-BpsCheck `
-        -Name 'Local storage' `
-        -Result 'TODO' `
-        -Detail 'IndexedDB/Local Storage detection not implemented yet.'
-}
-
-
-# ---------------------------------------------------------------------------
-# Doctor
-# ---------------------------------------------------------------------------
-
+function Test-BpsBackupLocation { Write-BpsCheck -Name 'Backup location' -Result 'TODO' -Detail 'Backup path validation not implemented yet.' }
+function Test-BpsEdge { Write-BpsCheck -Name 'Microsoft Edge' -Result 'TODO' -Detail 'Edge detection not implemented yet.' }
+function Test-BpsChrome { Write-BpsCheck -Name 'Google Chrome' -Result 'TODO' -Detail 'Chrome detection not implemented yet.' }
+function Test-BpsBrowserProcesses { Write-BpsCheck -Name 'Browser processes' -Result 'TODO' -Detail 'Process detection not implemented yet.' }
+function Test-BpsBrowserProfiles { Write-BpsCheck -Name 'Browser profiles' -Result 'TODO' -Detail 'Profile discovery not implemented yet.' }
+function Test-BpsLocalStorage { Write-BpsCheck -Name 'Local storage' -Result 'TODO' -Detail 'IndexedDB/Local Storage detection not implemented yet.' }
 function Invoke-BpsDoctor {
-
     Write-BpsHeader
-
-    Write-Host 'System' -ForegroundColor White
-    Write-Host '------' -ForegroundColor DarkGray
-
-    Test-BpsPowerShell
-    Test-BpsWindows
-
-    Write-Host ''
-    Write-Host 'Storage' -ForegroundColor White
-    Write-Host '-------' -ForegroundColor DarkGray
-
-    Test-BpsOneDrive
-    Test-BpsBackupLocation
-
-    Write-Host ''
-    Write-Host 'Browsers' -ForegroundColor White
-    Write-Host '--------' -ForegroundColor DarkGray
-
-    Test-BpsEdge
-    Test-BpsChrome
-    Test-BpsBrowserProcesses
-
-    Write-Host ''
-    Write-Host 'Profiles' -ForegroundColor White
-    Write-Host '--------' -ForegroundColor DarkGray
-
-    Test-BpsBrowserProfiles
-    Test-BpsLocalStorage
-
-    Write-Host ''
-    Write-Host ('=' * 60) -ForegroundColor DarkGray
-
-    Write-Host ''
-    Write-Host 'Doctor completed.' -ForegroundColor Cyan
-    Write-Host 'No files were modified.' -ForegroundColor DarkGray
-    Write-Host ''
+    Write-Host 'System' -ForegroundColor White; Write-Host '------' -ForegroundColor DarkGray
+    Test-BpsPowerShell; Test-BpsWindows
+    Write-Host ''; Write-Host 'Storage' -ForegroundColor White; Write-Host '-------' -ForegroundColor DarkGray
+    Test-BpsOneDrive; Test-BpsBackupLocation
+    Write-Host ''; Write-Host 'Browsers' -ForegroundColor White; Write-Host '--------' -ForegroundColor DarkGray
+    Test-BpsEdge; Test-BpsChrome; Test-BpsBrowserProcesses
+    Write-Host ''; Write-Host 'Profiles' -ForegroundColor White; Write-Host '--------' -ForegroundColor DarkGray
+    Test-BpsBrowserProfiles; Test-BpsLocalStorage
+    Write-Host ''; Write-Host ('=' * 60) -ForegroundColor DarkGray
+    Write-Host ''; Write-Host 'Doctor completed.' -ForegroundColor Cyan; Write-Host 'No files were modified.' -ForegroundColor DarkGray; Write-Host ''
 }
-
-
-# ---------------------------------------------------------------------------
-# Help
-# ---------------------------------------------------------------------------
-
 function Show-BpsHelp {
-
     Write-BpsHeader
-
-    Write-Host 'Usage:'
-    Write-Host ''
-    Write-Host '  pwsh -File .\BrowserProfileSync.ps1 <command>'
-    Write-Host ''
-    Write-Host 'Commands:'
-    Write-Host ''
-    Write-Host '  doctor    Check environment and browser configuration'
-    Write-Host '  help      Show this help'
-    Write-Host ''
+    Write-Host 'Usage:'; Write-Host ''; Write-Host '  pwsh -File .\BrowserProfileSync.ps1 <command>'; Write-Host ''
+    Write-Host 'Commands:'; Write-Host ''; Write-Host '  doctor    Check environment and browser configuration'; Write-Host '  help      Show this help'; Write-Host ''
 }
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
 try {
-
-    switch ($Command) {
-
-        'doctor' {
-            Invoke-BpsDoctor
-        }
-
-        'help' {
-            Show-BpsHelp
-        }
-
-        default {
-            Show-BpsHelp
-        }
-    }
-
+    switch ($Command) { 'doctor' { Invoke-BpsDoctor } 'help' { Show-BpsHelp } default { Show-BpsHelp } }
     exit 0
-}
-catch {
-
-    Write-Host ''
-    Write-Host 'BrowserProfileSync encountered an unexpected error.' `
-        -ForegroundColor Red
-
-    Write-Host ''
-    Write-Host $_.Exception.Message -ForegroundColor Red
-    Write-Host ''
-
-    exit 1
+} catch {
+    Write-Host ''; Write-Host 'BrowserProfileSync encountered an unexpected error.' -ForegroundColor Red
+    Write-Host ''; Write-Host $_.Exception.Message -ForegroundColor Red; Write-Host ''; exit 1
 }

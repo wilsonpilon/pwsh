@@ -1,11 +1,11 @@
-# BrowserProfileSync
+# BrowserProfileSync 0.1.2
 
-Created by DevContext 0.3.1.
+Development diagnostic build.
 
-- Context: Personal-Enterprise
-- Repository mode: Monorepo
-- Repository identity: Personal
-- GitHub: wilsonpilon
-- Intended Copilot: Enterprise / wilsonbarney
+## Run
 
-Run Start-Dev.ps1 to validate and open the workspace.
+```powershell
+pwsh -File .\BrowserProfileSync.ps1 doctor
+```
+
+Version 0.1.2 adds read-only discovery of OneDrive roots through the standard OneDrive environment variables. It does not create, copy, modify, or delete browser or OneDrive data.
