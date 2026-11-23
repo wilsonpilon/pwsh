@@ -18,3 +18,6 @@ Uso:
     pwsh -File .\DevContext.ps1 doctor -Json
 
 A 0.1.2 continua em modo somente leitura para Git, GitHub, SSH, VS Code e Copilot. Somente `%LOCALAPPDATA%\DevContext` pode ser criado/atualizado para configuracao do proprio DevContext.
+
+## Correcao
+Corrigido conflito entre a variavel local `$host` e a variavel automatica somente leitura `$Host` do PowerShell. A variavel interna agora se chama `$ghHostName`.

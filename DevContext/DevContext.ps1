@@ -100,13 +100,13 @@ function Get-SshDiagnostics {
 function Get-GitHubCliDiagnostics {
     if(-not(Get-Command gh -ErrorAction SilentlyContinue)){return [pscustomobject]@{Installed=$false;Accounts=@()}}
     $lines=Get-NativeLines {gh auth status}
-    $accounts=@();$host=$null;$cur=$null
+    $accounts=@();$ghHostName=$null;$cur=$null
     foreach($raw in $lines){
         $line=($raw -replace '[^\x00-\x7F]','').Trim()
-        if($line -match '^([\w.-]+)$'){$host=$Matches[1];continue}
+        if($line -match '^([\w.-]+)$'){$ghHostName=$Matches[1];continue}
         if($line -match 'Logged in to\s+\S+\s+account\s+(\S+)'){
             if($cur){$accounts+=[pscustomobject]$cur}
-            $cur=[ordered]@{Host=$host;Account=$Matches[1];Active=$false;Protocol=$null;Storage=$null}
+            $cur=[ordered]@{Host=$ghHostName;Account=$Matches[1];Active=$false;Protocol=$null;Storage=$null}
             if($line -match '\(([^)]+)\)'){$cur.Storage=$Matches[1]};continue
         }
         if($cur -and $line -match 'Active account:\s*(true|false)'){$cur.Active=[bool]::Parse($Matches[1]);continue}
