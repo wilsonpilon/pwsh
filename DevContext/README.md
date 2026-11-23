@@ -18,3 +18,6 @@ Importante: o GitHub normalmente retorna exit code 1 em `ssh -T` mesmo apos aute
 
 ## Correcao de parser
 Corrigido `return$v.Trim()` para `return $v.Trim()` e normalizadas chamadas de funcoes que haviam sido excessivamente compactadas.
+
+## Segunda correcao do parser
+Corrigido `foreach($name in$names)` para `foreach ($name in $names)` e normalizadas expressoes booleanas proximas ao comando `identity-verify`.
