@@ -21,3 +21,6 @@ Corrigido `return$v.Trim()` para `return $v.Trim()` e normalizadas chamadas de f
 
 ## Segunda correcao do parser
 Corrigido `foreach($name in$names)` para `foreach ($name in $names)` e normalizadas expressoes booleanas proximas ao comando `identity-verify`.
+
+## Correcao de execucao do identity-verify
+A expressao compactada `? Result-ne'PASS'` foi substituida por `Where-Object { $_.Result -ne 'PASS' }`. Tambem foram normalizados operadores de comparacao no fluxo de verificacao.
