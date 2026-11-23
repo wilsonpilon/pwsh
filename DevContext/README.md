@@ -42,3 +42,6 @@ pwsh -File .\DevContext.ps1 new
 ## Limite intencional da 0.3.0
 
 A versao cria o projeto local e o workspace. Ela nao cria repositorio remoto, nao faz push e nao troca silenciosamente a conta autenticada do GitHub Copilot. O workspace declara a conta pretendida e o `Start-Dev.ps1` exige confirmacao visual no VS Code.
+
+## 0.3.1 - compatibilidade de config
+Corrige `Get-Roots` sob `Set-StrictMode`: a rotina nao acessa mais propriedades inexistentes diretamente. Ela detecta primeiro o schema do `%LOCALAPPDATA%\DevContext\config.json`, aceita tanto o formato legado 0.1/0.1.1 (`projectRoots`) quanto o formato atual (`projectRootCandidates` / `extraRootCandidates`) e usa defaults seguros quando necessario.
