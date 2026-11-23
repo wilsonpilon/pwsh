@@ -1,23 +1,36 @@
-# DevContext 0.1.2
+# DevContext 0.2.0 - Identity Setup
 
-Doctor nao destrutivo para PowerShell 7 / Windows.
+Inclui o Doctor 0.1.2 e o cadastro local das identidades Personal, Enterprise e Extra.
 
-Melhorias da 0.1.2:
-- `E:\pwsh` passa a ser ProjectRoot, sem duplicacao Personal/Enterprise.
-- ExtraRoot permanece separado.
-- Leitura estrutural de `~/.ssh/config`: Host, HostName, User e IdentityFile. O conteudo das chaves privadas nunca e lido.
-- `gh auth status` passa a ser convertido em contas estruturadas e tokens nao sao registrados.
-- Git Credential Manager e reconhecido pela configuracao `credential.helper=manager`.
-- VS Code cruza `code --list-extensions` com `~/.vscode/extensions` e lista profiles fisicos.
-- Copilot CLI identifica origem VSCodeShim.
-- Readiness fornece `READY_FOR_IDENTITY_SETUP` quando o ambiente basico esta pronto.
+## Comandos
 
-Uso:
+```powershell
+pwsh -File .\DevContext.ps1 doctor -Json
+pwsh -File .\DevContext.ps1 identity-setup
+pwsh -File .\DevContext.ps1 identity-setup -Identity Personal
+pwsh -File .\DevContext.ps1 identities
+pwsh -File .\DevContext.ps1 identity-test
+pwsh -File .\DevContext.ps1 identity-test -Json
+```
 
-    pwsh -File .\DevContext.ps1 doctor
-    pwsh -File .\DevContext.ps1 doctor -Json
+## O que e armazenado
 
-A 0.1.2 continua em modo somente leitura para Git, GitHub, SSH, VS Code e Copilot. Somente `%LOCALAPPDATA%\DevContext` pode ser criado/atualizado para configuracao do proprio DevContext.
+- `user.name` e `user.email` pretendidos para cada contexto;
+- alias SSH do GitHub;
+- nome da conta GitHub;
+- conta GitHub Copilot pretendida;
+- disponibilidade planejada do Microsoft 365 Copilot;
+- isolamento obrigatorio de Extra.
 
-## Correcao
-Corrigido conflito entre a variavel local `$host` e a variavel automatica somente leitura `$Host` do PowerShell. A variavel interna agora se chama `$ghHostName`.
+## O que nao e armazenado
+
+- senhas;
+- PATs;
+- tokens OAuth;
+- cookies;
+- conteudo de chaves privadas;
+- sessoes do VS Code ou GitHub CLI.
+
+O arquivo fica em `%LOCALAPPDATA%\DevContext\identities.json`. Se existir o formato antigo da 0.1, ele e preservado com sufixo `.legacy-AAAAmmdd-HHmmss.json` antes da migracao.
+
+A versao 0.2.0 cadastra a intencao das identidades, mas ainda nao altera Git, remotes, VS Code ou contas Copilot. Essas alteracoes pertencerao ao futuro comando `dev new`.

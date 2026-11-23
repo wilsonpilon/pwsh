@@ -1,15 +1,17 @@
 #requires -Version 7.0
 [CmdletBinding()]
 param(
-    [ValidateSet('doctor','status','identities','config')]
+    [ValidateSet('doctor','status','identities','config','identity-setup','identity-test')]
     [string]$Command = 'doctor',
-    [switch]$Json
+    [switch]$Json,
+    [ValidateSet('Personal','Enterprise','Extra')]
+    [string]$Identity
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:AppName = 'DevContext'
-$script:AppVersion = '0.1.2'
+$script:AppVersion = '0.2.0'
 $script:ConfigRoot = Join-Path $env:LOCALAPPDATA $script:AppName
 $script:ConfigFile = Join-Path $script:ConfigRoot 'config.json'
 $script:IdentityFile = Join-Path $script:ConfigRoot 'identities.json'
@@ -32,9 +34,7 @@ function Initialize-DevContextStorage {
         } | ConvertTo-Json -Depth 8 | Set-Content $script:ConfigFile -Encoding utf8
     }
     if (-not (Test-Path -LiteralPath $script:IdentityFile)) {
-        [ordered]@{schemaVersion=1;identities=[ordered]@{
-            Personal=@{configured=$false}; Enterprise=@{configured=$false}; Extra=@{configured=$false;isolated=$true}
-        }} | ConvertTo-Json -Depth 8 | Set-Content $script:IdentityFile -Encoding utf8
+        New-IdentityStore | ConvertTo-Json -Depth 10 | Set-Content $script:IdentityFile -Encoding utf8
     }
 }
 
@@ -146,6 +146,135 @@ function Get-Readiness($roots,$git,$gh,$ssh,$vscode,$copilot){
     }
 }
 
+
+function New-IdentityStore {
+    [ordered]@{
+        schemaVersion = 2
+        updatedAt = $null
+        identities = [ordered]@{
+            Personal = [ordered]@{ configured=$false; git=[ordered]@{userName=$null;userEmail=$null;sshAlias=$null;githubAccount=$null}; copilot=[ordered]@{provider='GitHub';account=$null}; microsoft365=$false; isolated=$false }
+            Enterprise = [ordered]@{ configured=$false; git=[ordered]@{userName=$null;userEmail=$null;sshAlias=$null;githubAccount=$null}; copilot=[ordered]@{provider='GitHub';account=$null}; microsoft365=$true; isolated=$false }
+            Extra = [ordered]@{ configured=$false; git=[ordered]@{userName=$null;userEmail=$null;sshAlias=$null;githubAccount=$null}; copilot=[ordered]@{provider='GitHub';account=$null}; microsoft365=$false; isolated=$true }
+        }
+    }
+}
+
+function Read-IdentityStore {
+    Initialize-DevContextStorage
+    try {
+        $store=Get-Content $script:IdentityFile -Raw | ConvertFrom-Json -AsHashtable
+        if([int]$store.schemaVersion -lt 2){ throw 'Legacy schema' }
+        return $store
+    } catch {
+        $legacyBackup="$script:IdentityFile.legacy-$(Get-Date -Format yyyyMMdd-HHmmss).json"
+        if(Test-Path $script:IdentityFile){Copy-Item $script:IdentityFile $legacyBackup -Force}
+        $store=New-IdentityStore
+        $store | ConvertTo-Json -Depth 10 | Set-Content $script:IdentityFile -Encoding utf8
+        return $store
+    }
+}
+
+function Write-IdentityStore([hashtable]$Store) {
+    $Store.updatedAt=(Get-Date).ToString('o')
+    $temp="$script:IdentityFile.tmp"
+    $Store | ConvertTo-Json -Depth 10 | Set-Content $temp -Encoding utf8
+    Move-Item $temp $script:IdentityFile -Force
+}
+
+function Read-Required([string]$Prompt,[string]$Default='') {
+    $suffix=if($Default){" [$Default]"}else{''}
+    while($true){
+        $value=Read-Host "$Prompt$suffix"
+        if([string]::IsNullOrWhiteSpace($value)){$value=$Default}
+        if(-not [string]::IsNullOrWhiteSpace($value)){return $value.Trim()}
+        Write-Host 'Valor obrigatorio.' -ForegroundColor Yellow
+    }
+}
+
+function Select-FromList([string]$Prompt,[array]$Items,[string]$DisplayProperty='') {
+    if(-not $Items -or $Items.Count -eq 0){return $null}
+    Write-Host $Prompt -ForegroundColor Cyan
+    for($i=0;$i -lt $Items.Count;$i++){
+        $label=if($DisplayProperty){$Items[$i].$DisplayProperty}else{[string]$Items[$i]}
+        Write-Host ("  [{0}] {1}" -f ($i+1),$label)
+    }
+    while($true){
+        $choice=Read-Host 'Numero'
+        $n=0
+        if([int]::TryParse($choice,[ref]$n) -and $n -ge 1 -and $n -le $Items.Count){return $Items[$n-1]}
+        Write-Host 'Selecao invalida.' -ForegroundColor Yellow
+    }
+}
+
+function Invoke-IdentitySetup {
+    Initialize-DevContextStorage
+    $store=Read-IdentityStore
+    $ssh=Get-SshDiagnostics
+    $gh=Get-GitHubCliDiagnostics
+    $git=Get-GitDiagnostics
+    $targets=if($Identity){@($Identity)}else{@('Personal','Enterprise','Extra')}
+    foreach($name in $targets){
+        Write-Host "`nIdentity Setup: $name" -ForegroundColor Cyan
+        $current=$store.identities[$name]
+        $defaultName=if($name -eq 'Personal'){$git.Global.UserName}else{$current.git.userName}
+        $defaultEmail=if($name -eq 'Personal'){$git.Global.UserEmail}else{$current.git.userEmail}
+        $gitName=Read-Required 'Git user.name' $defaultName
+        $gitEmail=Read-Required 'Git user.email' $defaultEmail
+        $aliases=@($ssh.GitHubAliases)
+        $preferred=$aliases | Where-Object {
+            ($name -eq 'Personal' -and $_.Host -match '(?i)pessoal|personal') -or
+            ($name -eq 'Enterprise' -and $_.Host -match '(?i)cindumel|empresa|enterprise') -or
+            ($name -eq 'Extra' -and $_.Host -match '(?i)extra|larissa')
+        }
+        if($preferred){$aliases=@($preferred)+@($aliases|Where-Object {$_.Host -notin $preferred.Host})}
+        $selected=Select-FromList 'Selecione o alias SSH do GitHub:' $aliases 'Host'
+        if(-not $selected){throw 'Nenhum alias GitHub foi encontrado em ~/.ssh/config.'}
+        $defaultAccount=if($name -eq 'Personal'){$gh.ActiveAccount}else{$current.git.githubAccount}
+        $account=Read-Required 'Nome da conta GitHub' $defaultAccount
+        $copilotDefault=if($current.copilot.account){$current.copilot.account}else{$account}
+        $copilotAccount=Read-Required 'Conta GitHub Copilot pretendida' $copilotDefault
+        $current.git.userName=$gitName
+        $current.git.userEmail=$gitEmail
+        $current.git.sshAlias=$selected.Host
+        $current.git.githubAccount=$account
+        $current.copilot.provider='GitHub'
+        $current.copilot.account=$copilotAccount
+        $current.microsoft365=($name -eq 'Enterprise')
+        $current.isolated=($name -eq 'Extra')
+        $current.configured=$true
+        $store.identities[$name]=$current
+        Write-Host "$name configurada. Nenhum token, senha ou chave foi armazenado." -ForegroundColor Green
+    }
+    Write-IdentityStore $store
+    Show-Identities
+}
+
+function Test-OneIdentity([string]$Name,[hashtable]$Data) {
+    $ssh=Get-SshDiagnostics
+    $alias=@($ssh.GitHubAliases|Where-Object Host -eq $Data.git.sshAlias)
+    $issues=@()
+    if(-not $Data.configured){$issues+='Not configured'}
+    if(-not $Data.git.userName){$issues+='Missing Git user.name'}
+    if(-not $Data.git.userEmail){$issues+='Missing Git user.email'}
+    if(-not $alias){$issues+='SSH alias not found'}
+    if(-not $Data.git.githubAccount){$issues+='Missing GitHub account'}
+    if($Name -eq 'Extra' -and -not $Data.isolated){$issues+='Extra must be isolated'}
+    [pscustomobject]@{Identity=$Name;Configured=[bool]$Data.configured;GitHubAccount=$Data.git.githubAccount;SshAlias=$Data.git.sshAlias;CopilotAccount=$Data.copilot.account;Microsoft365=[bool]$Data.microsoft365;Isolated=[bool]$Data.isolated;Valid=($issues.Count -eq 0);Issues=$issues}
+}
+
+function Invoke-IdentityTest {
+    $store=Read-IdentityStore
+    $names=if($Identity){@($Identity)}else{@('Personal','Enterprise','Extra')}
+    $results=@($names|ForEach-Object {Test-OneIdentity $_ $store.identities[$_]})
+    if($Json){$results|ConvertTo-Json -Depth 8}else{$results|Format-Table Identity,Configured,GitHubAccount,SshAlias,CopilotAccount,Microsoft365,Isolated,Valid -AutoSize;foreach($r in $results|Where-Object {-not $_.Valid}){Write-Host "$($r.Identity): $($r.Issues -join '; ')" -ForegroundColor Yellow}}
+}
+
+function Show-Identities {
+    $store=Read-IdentityStore
+    $safe=[ordered]@{schemaVersion=$store.schemaVersion;updatedAt=$store.updatedAt;identities=$store.identities}
+    $safe|ConvertTo-Json -Depth 10
+}
+
 function Invoke-DevDoctor {
     Initialize-DevContextStorage
     $tools=@('git','gh','code','ssh','copilot')|ForEach-Object {Get-Tool $_}
@@ -162,4 +291,11 @@ function Invoke-DevDoctor {
 }
 
 Initialize-DevContextStorage
-switch($Command){'doctor'{Invoke-DevDoctor};'status'{Invoke-DevDoctor};'identities'{Get-Content $script:IdentityFile -Raw};'config'{Get-Content $script:ConfigFile -Raw}}
+switch($Command){
+    'doctor'{Invoke-DevDoctor}
+    'status'{Invoke-DevDoctor}
+    'identities'{Show-Identities}
+    'identity-setup'{Invoke-IdentitySetup}
+    'identity-test'{Invoke-IdentityTest}
+    'config'{Get-Content $script:ConfigFile -Raw}
+}
