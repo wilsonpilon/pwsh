@@ -9,7 +9,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:AppName = 'DevContext'
-$script:AppVersion = '0.1.0'
+$script:AppVersion = '0.1.1'
 $script:ConfigRoot = Join-Path $env:LOCALAPPDATA $script:AppName
 $script:ConfigFile = Join-Path $script:ConfigRoot 'config.json'
 $script:IdentityFile = Join-Path $script:ConfigRoot 'identities.json'
@@ -82,6 +82,69 @@ function Get-ProjectRootDiscovery {
     @($rows)
 }
 
+
+function Get-NativeText([scriptblock]$Script) {
+    try { return ((& $Script 2>&1 | ForEach-Object { "$_" }) -join "`n").Trim() } catch { return '' }
+}
+
+function Get-GitDiagnostics {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) { return [pscustomobject]@{ Installed=$false } }
+    $inside = (Get-NativeText { git rev-parse --is-inside-work-tree }) -eq 'true'
+    $root = if ($inside) { Get-NativeText { git rev-parse --show-toplevel } } else { $null }
+    $branch = if ($inside) { Get-NativeText { git branch --show-current } } else { $null }
+    $remote = if ($inside) { Get-NativeText { git remote get-url origin } } else { $null }
+    [pscustomobject]@{
+        Installed=$true
+        Global=[pscustomobject]@{
+            UserName=Get-NativeText { git config --global --get user.name }
+            UserEmail=Get-NativeText { git config --global --get user.email }
+        }
+        Local=if($inside){[pscustomobject]@{
+            UserName=Get-NativeText { git config --local --get user.name }
+            UserEmail=Get-NativeText { git config --local --get user.email }
+        }}else{$null}
+        CredentialHelpers=@(Get-NativeText { git config --show-origin --get-all credential.helper } -split "`n" | Where-Object { $_ })
+        CurrentRepository=[pscustomobject]@{ IsRepository=$inside; Root=$root; Branch=$branch; Origin=$remote }
+    }
+}
+
+function Get-SshDiagnostics {
+    $sshRoot=Join-Path $HOME '.ssh'; $cfg=Join-Path $sshRoot 'config'
+    $keys=@()
+    if(Test-Path $sshRoot){
+        $keys=@(Get-ChildItem -LiteralPath $sshRoot -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^id_' -and $_.Extension -ne '.pub' } |
+            ForEach-Object { $_.Name })
+    }
+    [pscustomobject]@{ Directory=$sshRoot; ConfigExists=(Test-Path $cfg); PrivateKeyFileNames=$keys; PrivateKeyCount=$keys.Count }
+}
+
+function Get-VSCodeDiagnostics {
+    $code=Get-Command code -ErrorAction SilentlyContinue
+    if(-not $code){ return [pscustomobject]@{ Installed=$false } }
+    $ext=@(Get-NativeText { code --list-extensions --show-versions } -split "`n" | Where-Object { $_ })
+    $userData=Join-Path $env:APPDATA 'Code\User'
+    $profileDir=Join-Path $userData 'profiles'
+    [pscustomobject]@{
+        Installed=$true; Executable=$code.Source; UserData=$userData
+        ProfileDirectories=if(Test-Path $profileDir){@(Get-ChildItem $profileDir -Directory -ErrorAction SilentlyContinue | ForEach-Object {$_.FullName})}else{@()}
+        Extensions=[pscustomobject]@{
+            GitHubCopilot=@($ext | Where-Object { $_ -match '^github\.copilot@' })
+            GitHubCopilotChat=@($ext | Where-Object { $_ -match '^github\.copilot-chat@' })
+            PowerShell=@($ext | Where-Object { $_ -match '^ms-vscode\.powershell@' })
+        }
+    }
+}
+
+function Get-CopilotDiagnostics {
+    $c=Get-Command copilot -ErrorAction SilentlyContinue
+    if(-not $c){return [pscustomobject]@{Installed=$false}}
+    $src='Other'
+    if($c.Source -match '[\\/]Microsoft VS Code[\\/].*copilot-shim'){ $src='VSCodeShim' }
+    [pscustomobject]@{Installed=$true; Path=$c.Source; Source=$src; Version=(Get-NativeText { copilot --version })}
+}
+
 function Invoke-DevDoctor {
     Initialize-DevContextStorage
     $tools = foreach ($n in @('git','gh','code','ssh','git-credential-manager','copilot')) {
@@ -99,6 +162,10 @@ function Invoke-DevDoctor {
         PowerShell=[pscustomobject]@{ Version=$PSVersionTable.PSVersion.ToString(); MeetsRequirement=$pwshOK; Edition=$PSVersionTable.PSEdition }
         Tools=@($tools)
         GitHubCli=$github
+        Git=Get-GitDiagnostics
+        SSH=Get-SshDiagnostics
+        VSCode=Get-VSCodeDiagnostics
+        CopilotCLI=Get-CopilotDiagnostics
         ProjectRoots=@($roots)
         ConfigFile=$script:ConfigFile
         IdentityFile=$script:IdentityFile

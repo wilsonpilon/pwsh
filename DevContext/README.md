@@ -28,3 +28,6 @@ pwsh -File .\DevContext.ps1 identities
 
 ## Importante
 A versao 0.1 nao altera configuracoes de Git, VS Code, SSH ou Copilot. Ela somente diagnostica o ambiente e cria os arquivos locais basicos do DevContext.
+
+## 0.1.1
+Evolucao do doctor a partir do teste real no XPS: Git global/local, helper de credenciais, repositorio atual, perfis/extensoes do VS Code, SSH e classificacao do Copilot CLI.
