@@ -1,47 +1,26 @@
-# DevContext 0.3.0
+# DevContext 0.3.2 Final
 
-Inclui os comandos das versoes anteriores e o novo `dev new`.
+Versao final da sessao, reescrita sem minificacao intencional. Preserva `%LOCALAPPDATA%\DevContext\config.json` e `identities.json`.
 
-## Uso
-
-```powershell
-.\dev.ps1 new
-```
-
-Ou diretamente:
+## Validacao inicial
 
 ```powershell
-pwsh -File .\DevContext.ps1 new
+.\dev.ps1 identity-test
+.\dev.ps1 identity-verify
 ```
 
-## Modelos
+## Ajuste da conta Enterprise
 
-- Personal-Personal
-- Personal-Enterprise
-- Enterprise-Enterprise
-- Enterprise-Personal
-- Extra-Extra
+```powershell
+.\dev.ps1 identity-setup -Identity Enterprise
+```
 
-## Modos de repositorio
+Use GitHub e GitHub Copilot `barneycindumel`.
 
-- `Monorepo`: cria uma subpasta no ProjectRoot existente e nao executa `git init` dentro dela.
-- `Standalone`: cria um repositorio independente, executa `git init` e configura `user.name` e `user.email` localmente.
-- Extra-Extra exige `Standalone` e permanece fora do monorepo compartilhado.
+## Corrigir o projeto existente sem recria-lo
 
-## Arquivos gerados
+```powershell
+.\Update-BrowserProfileSync.ps1
+```
 
-- `.project-context.json`
-- `.github/copilot-instructions.md`
-- `.vscode/`
-- `docs/`, `src/`, `tests/`, `tools/`
-- `<Projeto>.code-workspace`
-- `Start-Dev.ps1`
-- `README.md`
-- `.gitignore`
-
-## Limite intencional da 0.3.0
-
-A versao cria o projeto local e o workspace. Ela nao cria repositorio remoto, nao faz push e nao troca silenciosamente a conta autenticada do GitHub Copilot. O workspace declara a conta pretendida e o `Start-Dev.ps1` exige confirmacao visual no VS Code.
-
-## 0.3.1 - compatibilidade de config
-Corrige `Get-Roots` sob `Set-StrictMode`: a rotina nao acessa mais propriedades inexistentes diretamente. Ela detecta primeiro o schema do `%LOCALAPPDATA%\DevContext\config.json`, aceita tanto o formato legado 0.1/0.1.1 (`projectRoots`) quanto o formato atual (`projectRootCandidates` / `extraRootCandidates`) e usa defaults seguros quando necessario.
+O atualizador corrige `.project-context.json` e recria `Start-Dev.ps1`.
