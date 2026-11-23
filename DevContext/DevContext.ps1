@@ -1,15 +1,21 @@
 #requires -Version 7.0
 [CmdletBinding()]
 param(
-  [ValidateSet('doctor','status','identities','config','identity-setup','identity-test','identity-verify')]
+  [ValidateSet('doctor','status','identities','config','identity-setup','identity-test','identity-verify','new')]
   [string]$Command='doctor',
   [switch]$Json,
   [ValidateSet('Personal','Enterprise','Extra')]
-  [string]$Identity
+  [string]$Identity,
+  [string]$ProjectName,
+  [ValidateSet('Personal-Personal','Personal-Enterprise','Enterprise-Enterprise','Enterprise-Personal','Extra-Extra')]
+  [string]$ContextModel,
+  [ValidateSet('Monorepo','Standalone')]
+  [string]$RepositoryMode,
+  [string]$Destination
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
-$script:AppName='DevContext'; $script:AppVersion='0.2.1'
+$script:AppName='DevContext'; $script:AppVersion='0.3.0'
 $script:ConfigRoot=Join-Path $env:LOCALAPPDATA $script:AppName
 $script:ConfigFile=Join-Path $script:ConfigRoot 'config.json'
 $script:IdentityFile=Join-Path $script:ConfigRoot 'identities.json'
@@ -45,5 +51,333 @@ function Invoke-IdentityTest {$s=Read-IdentityStore;$names=if($Identity){@($Iden
 function Invoke-SshIdentityProbe([string]$Alias){$ssh=Get-Command ssh -EA SilentlyContinue;if (-not $ssh){return[pscustomobject]@{Authenticated=$false;Account=$null;ExitCode=$null;Message='ssh not found'}};$lines=@(&$ssh.Source -T -o BatchMode=yes -o ConnectTimeout=8 "git@$Alias" 2>&1|%{[string]$_});$exit=$LASTEXITCODE;$text=($lines-join"`n").Trim();$acct=$null;if($text-match"(?im)Hi\s+([^!\s]+)!\s+You've successfully authenticated"){$acct=$Matches[1]};[pscustomobject]@{Authenticated=[bool]$acct;Account=$acct;ExitCode=$exit;Message=$text}}
 function Invoke-IdentityVerify {$s=Read-IdentityStore;$names=if($Identity){@($Identity)}else{@('Personal','Enterprise','Extra')};$r=@();foreach ($name in $names){$d=$s.identities[$name];$expected=[string]$d.git.githubAccount;$alias=[string]$d.git.sshAlias;if (-not $d.configured -or -not $expected -or -not $alias){$r+=[pscustomobject]@{Identity=$name;Expected=$expected;SshAlias=$alias;Authenticated=$null;AccountMatch=$false;IsolationValid=($name -ne 'Extra'-or [bool]$d.isolated);Result='NOT_CONFIGURED'};continue};$p=Invoke-SshIdentityProbe $alias;$m=$p.Authenticated -and ($p.Account -ieq $expected);$iso=($name -ne 'Extra')-or [bool]$d.isolated;$state=if (-not $p.Authenticated){'SSH_FAILED'}elseif (-not $m){'IDENTITY_MISMATCH'}elseif (-not $iso){'ISOLATION_FAILED'}else{'PASS'};$r+=[pscustomobject]@{Identity=$name;Expected=$expected;SshAlias=$alias;Authenticated=$p.Account;AccountMatch=$m;IsolationValid=$iso;Result=$state;ExitCode=$p.ExitCode}};$overall=if(@($r | Where-Object { $_.Result -ne 'PASS' }).Count -eq 0){'VERIFIED'}else{'FAILED'};$report=[pscustomobject]@{App="$script:AppName $script:AppVersion";Overall=$overall;Results=$r;Note='GitHub SSH normally returns exit code 1 after successful authentication because shell access is disabled; validation uses the GitHub greeting.'};if($Json){$report|ConvertTo-Json -Depth 8}else{$r|Format-Table Identity,Expected,SshAlias,Authenticated,AccountMatch,IsolationValid,Result -AutoSize;Write-Host "Overall: $overall" -ForegroundColor $(if($overall -eq 'VERIFIED'){'Green'}else{'Red'})}}
 function Invoke-DevDoctor {Initialize-DevContextStorage;$roots=Get-Roots;$git=Get-GitDiagnostics;$gh=Get-GitHubCliDiagnostics;$ssh=Get-SshDiagnostics;$vs=Get-VSCodeDiagnostics;$cop=Get-CopilotDiagnostics;$r=[pscustomobject]@{App="$script:AppName $script:AppVersion";Timestamp=(Get-Date).ToString('o');Computer=$env:COMPUTERNAME;User=$env:USERNAME;PowerShell=[pscustomobject]@{Version=$PSVersionTable.PSVersion.ToString();MeetsRequirement=$PSVersionTable.PSVersion.Major-ge7;Edition=$PSVersionTable.PSEdition};Tools=@('git','gh','code','ssh','copilot')|%{Get-Tool $_};Roots=$roots;Git=$git;GitHubCli=$gh;SSH=$ssh;VSCode=$vs;CopilotCLI=$cop;Readiness=[pscustomobject]@{ProjectRootFound=[bool]$roots.SelectedProjectRoot;ExtraRootFound=[bool]$roots.SelectedExtraRoot;PersonalCandidateDetected=[bool]($gh.ActiveAccount-and$git.Global.UserEmail);PersonalGitHubCandidate=$gh.ActiveAccount;Status=if($roots.SelectedProjectRoot-and$gh.ActiveAccount){'READY_FOR_IDENTITY_SETUP'}else{'NEEDS_ATTENTION'}};ConfigFile=$script:ConfigFile;IdentityFile=$script:IdentityFile;ReadOnlyDiagnostics=$true};if($Json){$r|ConvertTo-Json -Depth 12}else{Write-Host"DevContext $script:AppVersion - Doctor" -ForegroundColor Cyan;Write-Host"Project Root............ $($roots.SelectedProjectRoot)";Write-Host"GitHub active........... $($gh.ActiveAccount)";Write-Host"Readiness............... $($r.Readiness.Status)"}}
+
+function Read-Choice {
+    param(
+        [string]$Prompt,
+        [string[]]$Options
+    )
+
+    Write-Host $Prompt -ForegroundColor Cyan
+    for ($index = 0; $index -lt $Options.Count; $index++) {
+        Write-Host ("  [{0}] {1}" -f ($index + 1), $Options[$index])
+    }
+
+    while ($true) {
+        $answer = Read-Host 'Numero'
+        $number = 0
+        if ([int]::TryParse($answer, [ref]$number) -and
+            $number -ge 1 -and
+            $number -le $Options.Count) {
+            return $Options[$number - 1]
+        }
+        Write-Host 'Selecao invalida.' -ForegroundColor Yellow
+    }
+}
+
+function Get-ProjectModel {
+    param([string]$Name)
+
+    $models = @{
+        'Personal-Personal' = @{
+            RepositoryIdentity = 'Personal'
+            CopilotIdentity = 'Personal'
+            Microsoft365 = $false
+            Color = '#1F6FEB'
+            Label = 'GIT PERSONAL | COPILOT PERSONAL'
+        }
+        'Personal-Enterprise' = @{
+            RepositoryIdentity = 'Personal'
+            CopilotIdentity = 'Enterprise'
+            Microsoft365 = $true
+            Color = '#6F42C1'
+            Label = 'GIT PERSONAL | COPILOT ENTERPRISE'
+        }
+        'Enterprise-Enterprise' = @{
+            RepositoryIdentity = 'Enterprise'
+            CopilotIdentity = 'Enterprise'
+            Microsoft365 = $true
+            Color = '#8B1E1E'
+            Label = 'GIT ENTERPRISE | COPILOT ENTERPRISE'
+        }
+        'Enterprise-Personal' = @{
+            RepositoryIdentity = 'Enterprise'
+            CopilotIdentity = 'Personal'
+            Microsoft365 = $false
+            Color = '#B45309'
+            Label = 'GIT ENTERPRISE | COPILOT PERSONAL'
+        }
+        'Extra-Extra' = @{
+            RepositoryIdentity = 'Extra'
+            CopilotIdentity = 'Extra'
+            Microsoft365 = $false
+            Color = '#0F766E'
+            Label = 'EXTRA ISOLATED'
+        }
+    }
+
+    return $models[$Name]
+}
+
+function Assert-IdentityVerified {
+    param([string]$IdentityName)
+
+    $store = Read-IdentityStore
+    $data = $store.identities[$IdentityName]
+    if (-not $data -or -not $data.configured) {
+        throw "A identidade $IdentityName nao esta configurada. Execute identity-setup."
+    }
+
+    $probe = Invoke-SshIdentityProbe -Alias $data.git.sshAlias
+    if (-not $probe.Authenticated) {
+        throw "Falha ao autenticar o alias SSH $($data.git.sshAlias)."
+    }
+    if ($probe.Account -ine $data.git.githubAccount) {
+        throw "Identity mismatch: esperado $($data.git.githubAccount), recebido $($probe.Account)."
+    }
+    if ($IdentityName -eq 'Extra' -and -not $data.isolated) {
+        throw 'A identidade Extra deve estar isolada.'
+    }
+
+    return $data
+}
+
+function ConvertTo-SafeProjectName {
+    param([string]$Name)
+
+    $safe = $Name.Trim() -replace '[<>:"/\\|?*]', '-'
+    $safe = $safe -replace '\s+', '-'
+    $safe = $safe.Trim('.', '-', ' ')
+    if ([string]::IsNullOrWhiteSpace($safe)) {
+        throw 'Nome de projeto invalido.'
+    }
+    return $safe
+}
+
+function Write-Utf8Json {
+    param(
+        [Parameter(Mandatory)]$Value,
+        [Parameter(Mandatory)][string]$Path,
+        [int]$Depth = 12
+    )
+    $Value | ConvertTo-Json -Depth $Depth | Set-Content -LiteralPath $Path -Encoding utf8
+}
+
+function New-DevProject {
+    $store = Read-IdentityStore
+    $roots = Get-Roots
+
+    $selectedModel = $ContextModel
+    if (-not $selectedModel) {
+        $selectedModel = Read-Choice -Prompt 'Selecione o contexto do projeto:' -Options @(
+            'Personal-Personal',
+            'Personal-Enterprise',
+            'Enterprise-Enterprise',
+            'Enterprise-Personal',
+            'Extra-Extra'
+        )
+    }
+
+    $model = Get-ProjectModel -Name $selectedModel
+    $repositoryIdentity = Assert-IdentityVerified -IdentityName $model.RepositoryIdentity
+    $copilotIdentity = $store.identities[$model.CopilotIdentity]
+    if (-not $copilotIdentity.configured) {
+        throw "A identidade Copilot $($model.CopilotIdentity) nao esta configurada."
+    }
+
+    $name = $ProjectName
+    if (-not $name) {
+        $name = Read-Host 'Nome do projeto'
+    }
+    $safeName = ConvertTo-SafeProjectName -Name $name
+
+    $mode = $RepositoryMode
+    if (-not $mode) {
+        $mode = Read-Choice -Prompt 'Modo do repositorio:' -Options @('Monorepo', 'Standalone')
+    }
+
+    if ($selectedModel -eq 'Extra-Extra' -and $mode -eq 'Monorepo') {
+        throw 'Projetos Extra nao podem ser criados no monorepo pessoal/empresarial.'
+    }
+
+    $target = $Destination
+    if (-not $target) {
+        if ($mode -eq 'Monorepo') {
+            if (-not $roots.SelectedProjectRoot) {
+                throw 'Nenhum ProjectRoot foi encontrado.'
+            }
+            $target = Join-Path $roots.SelectedProjectRoot $safeName
+        }
+        elseif ($selectedModel -eq 'Extra-Extra') {
+            $extraBase = $roots.SelectedExtraRoot
+            if (-not $extraBase) {
+                $extraBase = Read-Host 'Diretorio-base Extra, por exemplo E:\extra'
+            }
+            $target = Join-Path $extraBase $safeName
+        }
+        else {
+            $base = Read-Host 'Diretorio-base do repositorio standalone'
+            $target = Join-Path $base $safeName
+        }
+    }
+
+    $target = [System.IO.Path]::GetFullPath($target)
+    if (Test-Path -LiteralPath $target) {
+        if (@(Get-ChildItem -LiteralPath $target -Force -ErrorAction SilentlyContinue).Count -gt 0) {
+            throw "O diretorio de destino ja existe e nao esta vazio: $target"
+        }
+    }
+    else {
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+    }
+
+    foreach ($folder in @('.github', '.vscode', 'docs', 'src', 'tests', 'tools')) {
+        New-Item -ItemType Directory -Path (Join-Path $target $folder) -Force | Out-Null
+    }
+
+    $context = [ordered]@{
+        schemaVersion = 1
+        projectName = $safeName
+        createdAt = (Get-Date).ToString('o')
+        createdBy = "$script:AppName $script:AppVersion"
+        contextModel = $selectedModel
+        repositoryMode = $mode
+        repository = [ordered]@{
+            identity = $model.RepositoryIdentity
+            gitHubAccount = $repositoryIdentity.git.githubAccount
+            sshAlias = $repositoryIdentity.git.sshAlias
+            userName = $repositoryIdentity.git.userName
+            userEmail = $repositoryIdentity.git.userEmail
+        }
+        copilot = [ordered]@{
+            identity = $model.CopilotIdentity
+            account = $copilotIdentity.copilot.account
+            provider = 'GitHub'
+            automaticAccountSwitch = $false
+        }
+        microsoft365Copilot = [ordered]@{
+            enabled = [bool]$model.Microsoft365
+            automaticContextTransfer = $false
+        }
+        isolation = [ordered]@{
+            required = ($selectedModel -eq 'Extra-Extra')
+        }
+    }
+    Write-Utf8Json -Value $context -Path (Join-Path $target '.project-context.json')
+
+    $workspace = [ordered]@{
+        folders = @(@{ path = '.' })
+        settings = [ordered]@{
+            'window.title' = "$safeName [$($model.Label)]"
+            'workbench.colorCustomizations' = [ordered]@{
+                'titleBar.activeBackground' = $model.Color
+                'titleBar.activeForeground' = '#FFFFFF'
+                'statusBar.background' = $model.Color
+                'statusBar.foreground' = '#FFFFFF'
+            }
+            'powershell.powerShellDefaultVersion' = 'PowerShell 7'
+            'files.encoding' = 'utf8'
+        }
+        extensions = [ordered]@{
+            recommendations = @('ms-vscode.powershell', 'github.copilot', 'github.copilot-chat')
+        }
+    }
+    $workspacePath = Join-Path $target "$safeName.code-workspace"
+    Write-Utf8Json -Value $workspace -Path $workspacePath
+
+    $instructions = @"
+# Copilot instructions for $safeName
+
+Project context: $selectedModel
+Repository identity: $($model.RepositoryIdentity) / $($repositoryIdentity.git.githubAccount)
+Intended GitHub Copilot identity: $($model.CopilotIdentity) / $($copilotIdentity.copilot.account)
+Microsoft 365 Copilot context allowed: $([bool]$model.Microsoft365)
+Extra isolation required: $($selectedModel -eq 'Extra-Extra')
+
+Rules:
+- Use PowerShell 7 or newer.
+- Never store passwords, PATs, OAuth tokens, cookies, private keys, or VS Code authentication databases.
+- Keep machine-specific configuration outside Git.
+- Use `$PSScriptRoot instead of fixed C:, D:, or E: project paths.
+- Do not copy enterprise information into a personal or Extra repository unless it was explicitly reviewed and approved.
+- The declared Copilot account is an intended context. VS Code authentication must still be confirmed by the user.
+"@
+    Set-Content -LiteralPath (Join-Path $target '.github\copilot-instructions.md') -Value $instructions -Encoding utf8
+
+    $readme = @"
+# $safeName
+
+Created by DevContext $script:AppVersion.
+
+- Context: $selectedModel
+- Repository mode: $mode
+- Repository identity: $($model.RepositoryIdentity)
+- GitHub: $($repositoryIdentity.git.githubAccount)
+- Intended Copilot: $($model.CopilotIdentity) / $($copilotIdentity.copilot.account)
+
+Run `Start-Dev.ps1` to validate and open the workspace.
+"@
+    Set-Content -LiteralPath (Join-Path $target 'README.md') -Value $readme -Encoding utf8
+
+    $gitignore = @'
+.vscode/*.log
+*.log
+Temp/
+.local/
+.env
+.env.*
+'@
+    Set-Content -LiteralPath (Join-Path $target '.gitignore') -Value $gitignore -Encoding utf8
+
+    $startDev = @"
+#requires -Version 7.0
+`$ErrorActionPreference = 'Stop'
+`$root = `$PSScriptRoot
+`$context = Get-Content (Join-Path `$root '.project-context.json') -Raw | ConvertFrom-Json
+Write-Host "Project....... `$(`$context.projectName)" -ForegroundColor Cyan
+Write-Host "Context....... `$(`$context.contextModel)"
+Write-Host "GitHub........ `$(`$context.repository.gitHubAccount)"
+Write-Host "Copilot....... `$(`$context.copilot.account)"
+Write-Host "M365 Copilot.. `$(`$context.microsoft365Copilot.enabled)"
+Write-Host "IMPORTANT: Confirm the active GitHub Copilot account in VS Code before sending project content." -ForegroundColor Yellow
+`$workspace = Join-Path `$root '$safeName.code-workspace'
+& code `$workspace
+"@
+    Set-Content -LiteralPath (Join-Path $target 'Start-Dev.ps1') -Value $startDev -Encoding utf8
+
+    if ($mode -eq 'Standalone') {
+        Push-Location $target
+        try {
+            & git init | Out-Null
+            & git config --local user.name $repositoryIdentity.git.userName
+            & git config --local user.email $repositoryIdentity.git.userEmail
+            & git add .
+        }
+        finally {
+            Pop-Location
+        }
+    }
+    else {
+        $repoRoot = $roots.SelectedProjectRoot
+        $repoGitName = Get-NativeText { git -C $repoRoot config --get user.name }
+        $repoGitEmail = Get-NativeText { git -C $repoRoot config --get user.email }
+        if ($repoGitName -and $repoGitName -ne $repositoryIdentity.git.userName) {
+            Write-Warning "O monorepo usa user.name '$repoGitName', diferente de '$($repositoryIdentity.git.userName)'. Nenhuma configuracao Git foi alterada."
+        }
+        if ($repoGitEmail -and $repoGitEmail -ne $repositoryIdentity.git.userEmail) {
+            Write-Warning "O monorepo usa user.email '$repoGitEmail', diferente de '$($repositoryIdentity.git.userEmail)'. Nenhuma configuracao Git foi alterada."
+        }
+    }
+
+    Write-Host ''
+    Write-Host 'Projeto criado com sucesso.' -ForegroundColor Green
+    Write-Host "Path........... $target"
+    Write-Host "Context........ $selectedModel"
+    Write-Host "Repository..... $($repositoryIdentity.git.githubAccount)"
+    Write-Host "Copilot........ $($copilotIdentity.copilot.account)"
+    Write-Host "Workspace...... $workspacePath"
+    Write-Host 'Nenhum repositorio remoto foi criado e nenhuma conta Copilot foi trocada automaticamente.' -ForegroundColor Yellow
+}
+
 Initialize-DevContextStorage
-switch($Command){doctor{Invoke-DevDoctor}status{Invoke-DevDoctor}identities{Show-Identities }config{Get-Content $script:ConfigFile -Raw}identity-setup{Invoke-IdentitySetup}identity-test{Invoke-IdentityTest}identity-verify{Invoke-IdentityVerify}}
+switch($Command){doctor{Invoke-DevDoctor}status{Invoke-DevDoctor}identities{Show-Identities }config{Get-Content $script:ConfigFile -Raw}identity-setup{Invoke-IdentitySetup}identity-test{Invoke-IdentityTest}identity-verify{Invoke-IdentityVerify}new{New-DevProject}}

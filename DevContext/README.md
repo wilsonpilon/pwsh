@@ -1,29 +1,44 @@
-# DevContext 0.2.1
+# DevContext 0.3.0
 
-Versao completa contendo: doctor, status, config, identities, identity-setup, identity-test e identity-verify.
+Inclui os comandos das versoes anteriores e o novo `dev new`.
 
-## Identity verify
+## Uso
 
 ```powershell
-pwsh -File .\DevContext.ps1 identity-verify
-pwsh -File .\DevContext.ps1 identity-verify -Identity Enterprise
-pwsh -File .\DevContext.ps1 identity-verify -Json
+.\dev.ps1 new
 ```
 
-`identity-verify` executa SSH em `BatchMode=yes`, compara o cumprimento `Hi <account>!` do GitHub com `githubAccount` e tambem exige `isolated=true` para Extra. Nao faz push e nao altera Git, SSH, GitHub ou VS Code.
+Ou diretamente:
 
-Estados: PASS, SSH_FAILED, IDENTITY_MISMATCH, ISOLATION_FAILED, NOT_CONFIGURED. O global so sera VERIFIED se todos os testes solicitados retornarem PASS.
+```powershell
+pwsh -File .\DevContext.ps1 new
+```
 
-Importante: o GitHub normalmente retorna exit code 1 em `ssh -T` mesmo apos autenticar, pois nao oferece shell. A verificacao usa a mensagem autenticada.
+## Modelos
 
-## Correcao de parser
-Corrigido `return$v.Trim()` para `return $v.Trim()` e normalizadas chamadas de funcoes que haviam sido excessivamente compactadas.
+- Personal-Personal
+- Personal-Enterprise
+- Enterprise-Enterprise
+- Enterprise-Personal
+- Extra-Extra
 
-## Segunda correcao do parser
-Corrigido `foreach($name in$names)` para `foreach ($name in $names)` e normalizadas expressoes booleanas proximas ao comando `identity-verify`.
+## Modos de repositorio
 
-## Correcao de execucao do identity-verify
-A expressao compactada `? Result-ne'PASS'` foi substituida por `Where-Object { $_.Result -ne 'PASS' }`. Tambem foram normalizados operadores de comparacao no fluxo de verificacao.
+- `Monorepo`: cria uma subpasta no ProjectRoot existente e nao executa `git init` dentro dela.
+- `Standalone`: cria um repositorio independente, executa `git init` e configura `user.name` e `user.email` localmente.
+- Extra-Extra exige `Standalone` e permanece fora do monorepo compartilhado.
 
-## Final 0.2.1 runtime correction
-Corrigida a chamada final para `Write-Host "Overall: $overall"` e normalizados operadores remanescentes no fluxo de verificacao.
+## Arquivos gerados
+
+- `.project-context.json`
+- `.github/copilot-instructions.md`
+- `.vscode/`
+- `docs/`, `src/`, `tests/`, `tools/`
+- `<Projeto>.code-workspace`
+- `Start-Dev.ps1`
+- `README.md`
+- `.gitignore`
+
+## Limite intencional da 0.3.0
+
+A versao cria o projeto local e o workspace. Ela nao cria repositorio remoto, nao faz push e nao troca silenciosamente a conta autenticada do GitHub Copilot. O workspace declara a conta pretendida e o `Start-Dev.ps1` exige confirmacao visual no VS Code.
