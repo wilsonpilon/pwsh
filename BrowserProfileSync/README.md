@@ -1,18 +1,22 @@
-# BrowserProfileSync 0.1.7
+# BrowserProfileSync 0.2.0
 
-Read-only diagnostic build that closes the initial Doctor phase.
+Primeira versao de teste com backup real para Edge, Chrome e Vivaldi.
 
-## New in 0.1.7
-- Wider output labels for long browser/profile names.
-- Summary of detected browsers and profiles.
-- Estimated total of inventoried web application data and browser databases.
-- Backup readiness check: backup is reported BLOCKED while Edge, Chrome or Vivaldi processes are running.
-- Read-only backup-location status. An optional `BROWSERPROFILESYNC_BACKUP` environment variable can be inspected, but Doctor never creates the directory.
+## Seguranca
+- `doctor` continua somente leitura.
+- `backup` bloqueia se algum navegador suportado estiver em execucao.
+- O diretorio-base de destino deve existir.
+- Cada execucao cria uma nova pasta `<COMPUTADOR>-yyyyMMdd-HHmmss`.
+- Backups anteriores nunca sao sobrescritos ou apagados.
+- Falhas preservam a pasta parcial e geram `manifest.incomplete.json`.
+- Restore ainda nao existe.
 
-## Important
-The size summary is an estimate of the inventoried protection set, not the size of an entire Chromium profile. Version 0.1.7 still performs no backup and does not stop browsers.
-
-## Run
+## Teste
 ```powershell
-pwsh -File .\BrowserProfileSync.ps1 doctor
+New-Item -ItemType Directory -Path D:\BrowserProfileSync -Force
+pwsh -File .\BrowserProfileSync.ps1 backup -Destination D:\BrowserProfileSync
 ```
+
+Primeiro teste com Edge/Vivaldi abertos: deve bloquear sem copiar. Depois feche-os, confirme com `Get-Process msedge,chrome,vivaldi -ErrorAction SilentlyContinue` e execute novamente.
+
+A verificacao 0.2.0 compara quantidade de arquivos e total de bytes de cada item. Hash criptografico fica para o futuro comando `verify`.
