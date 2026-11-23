@@ -24,3 +24,6 @@ Corrigido `foreach($name in$names)` para `foreach ($name in $names)` e normaliza
 
 ## Correcao de execucao do identity-verify
 A expressao compactada `? Result-ne'PASS'` foi substituida por `Where-Object { $_.Result -ne 'PASS' }`. Tambem foram normalizados operadores de comparacao no fluxo de verificacao.
+
+## Final 0.2.1 runtime correction
+Corrigida a chamada final para `Write-Host "Overall: $overall"` e normalizados operadores remanescentes no fluxo de verificacao.
