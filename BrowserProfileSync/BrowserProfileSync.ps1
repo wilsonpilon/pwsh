@@ -1,14 +1,16 @@
 #requires -Version 7.0
 [CmdletBinding()]
 param(
- [Parameter(Position=0)][ValidateSet('doctor','backup','verify','config','list','status','help')][string]$Command='help',
+ [Parameter(Position=0)][ValidateSet('doctor','backup','verify','config','list','status','retention','help')][string]$Command='help',
  [string]$Destination,
- [string]$Backup
+ [string]$Backup,
+ [ValidateRange(1,999)][int]$Keep=3,
+ [switch]$Apply
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $Script:AppName='BrowserProfileSync'
-$Script:Version='0.2.4'
+$Script:Version='0.2.6'
 function Write-BpsHeader{Write-Host '';Write-Host "$Script:AppName $Script:Version" -ForegroundColor Cyan;Write-Host ('='*60) -ForegroundColor DarkGray;Write-Host ''}
 function Write-BpsCheck{param([string]$Name,[ValidateSet('PASS','WARN','FAIL','INFO')][string]$Result,[string]$Detail='');$c=switch($Result){PASS{'Green'}WARN{'Yellow'}FAIL{'Red'}INFO{'Cyan'}};Write-Host ('{0,-40}'-f$Name) -NoNewline;Write-Host ('{0,-8}'-f"[$Result]") -ForegroundColor $c;if(-not[string]::IsNullOrWhiteSpace($Detail)){Write-Host (' '*42+$Detail) -ForegroundColor DarkGray}}
 function Format-BpsSize{param([int64]$Bytes);if($Bytes-ge 1GB){'{0:N2} GB'-f($Bytes/1GB)}elseif($Bytes-ge 1MB){'{0:N2} MB'-f($Bytes/1MB)}elseif($Bytes-ge 1KB){'{0:N2} KB'-f($Bytes/1KB)}else{"$Bytes B"}}
@@ -26,38 +28,103 @@ function Invoke-BpsConfig{Write-BpsHeader;if([string]::IsNullOrWhiteSpace($Desti
 function Invoke-BpsDoctor{Write-BpsHeader;$r=@(Get-BpsRunningBrowserSummary);if($r.Count){Write-BpsCheck 'Backup readiness' 'WARN' 'BLOCKED: close supported browsers before backup.'}else{Write-BpsCheck 'Backup readiness' 'PASS' 'READY: no supported browser processes are running.'}}
 function Invoke-BpsBackup{Write-BpsHeader;$r=@(Get-BpsRunningBrowserSummary);if($r.Count){Write-BpsCheck 'Backup' 'FAIL' 'BLOCKED: close all supported browsers and try again.';return 20};$base=Get-BpsBackupRoot;if([string]::IsNullOrWhiteSpace($base)-or-not(Test-Path -LiteralPath $base -PathType Container)){Write-BpsCheck 'Backup location' 'FAIL' 'Configure destination first.';return 21};$root=Join-Path (Resolve-Path $base).Path "$([Environment]::MachineName)-$(Get-Date -Format 'yyyyMMdd-HHmmss')";New-Item -ItemType Directory -Path $root|Out-Null;$entries=@();$files=[int64]0;$bytes=[int64]0;foreach($b in @('Edge','Chrome','Vivaldi')){$i=Get-BpsBrowserInfo $b;if(-not$i.UserDataExists){continue};$br=Join-Path $root ('Browsers\'+($i.Name-replace'[^A-Za-z0-9._-]','_'));$ls=Join-Path $i.UserData 'Local State';if(Test-Path $ls){$t=Join-Path $br 'Local State';$m=Copy-BpsItemVerified $ls $t;$h=Get-BpsHashManifest $t;$files+=$m.Files;$bytes+=$m.Bytes;$entries+=[pscustomobject]@{Browser=$i.Name;Profile=$null;Item='Local State';Target=$t;Files=$m.Files;Bytes=$m.Bytes;Hashes=$h}};foreach($p in @(Get-BpsBrowserProfiles $b)){foreach($x in @(Get-BpsBackupItems $p)){$t=Join-Path $br "Profiles\$($p.DirectoryName)\$($x.RelativePath)";$m=Copy-BpsItemVerified $x.Source $t;$h=Get-BpsHashManifest $t;$files+=$m.Files;$bytes+=$m.Bytes;$entries+=[pscustomobject]@{Browser=$i.Name;Profile=$p.DirectoryName;FriendlyName=$p.FriendlyName;Item=$x.RelativePath;Target=$t;Files=$m.Files;Bytes=$m.Bytes;Hashes=$h}}}};$man=[ordered]@{SchemaVersion=2;Application=$Script:AppName;ApplicationVersion=$Script:Version;Computer=[Environment]::MachineName;BackupRoot=$root;Status='Complete';Verification='SHA256';TotalFiles=$files;TotalBytes=$bytes;Items=$entries};$mp=Join-Path $root 'manifest.json';$man|ConvertTo-Json -Depth 10|Set-Content -LiteralPath $mp -Encoding UTF8;Write-BpsCheck 'Backup' 'PASS' 'Backup completed with SHA-256 manifest.';Write-BpsCheck 'Backup folder' 'INFO' $root;Write-BpsCheck 'Files copied' 'INFO' ([string]$files);Write-BpsCheck 'Data copied' 'INFO' (Format-BpsSize $bytes);return 0}
 function Invoke-BpsVerify{Write-BpsHeader;if([string]::IsNullOrWhiteSpace($Backup)-or-not(Test-Path $Backup -PathType Container)){Write-BpsCheck 'Verify' 'FAIL' 'Provide a valid -Backup folder.';return 30};$root=(Resolve-Path $Backup).Path;$mp=Join-Path $root 'manifest.json';$m=Get-Content $mp -Raw -Encoding UTF8|ConvertFrom-Json;$hashed=([string]$m.Verification-eq'SHA256');$bad=@();$fc=[int64]0;$bc=[int64]0;$hc=[int64]0;foreach($item in @($m.Items)){$t=[string]$item.Target;$rr=[string]$m.BackupRoot;if($t.StartsWith($rr,[StringComparison]::OrdinalIgnoreCase)){$t=Join-Path $root $t.Substring($rr.Length).TrimStart('\','/')};if(-not(Test-Path $t)){$bad+="Missing: $t";continue};$x=Get-BpsTreeMetrics $t;if($x.Files-ne[int64]$item.Files-or$x.Bytes-ne[int64]$item.Bytes){$bad+="Count/size mismatch: $t";continue};if($hashed){$a=@(Get-BpsHashManifest $t);$e=@($item.Hashes);$map=@{};foreach($h in $e){$map[[string]$h.Path]=[string]$h.SHA256};foreach($h in $a){if(-not$map.ContainsKey([string]$h.Path)-or$map[[string]$h.Path]-ne[string]$h.SHA256){$bad+="SHA256 mismatch: $t -> $($h.Path)";break};$hc++}};$fc+=$x.Files;$bc+=$x.Bytes};if($bad.Count){Write-BpsCheck 'Verify' 'FAIL' "$($bad.Count) problem(s) detected.";foreach($z in $bad|Select-Object -First 20){Write-BpsCheck '  Problem' 'WARN' $z};return 35};if($hashed){Write-BpsCheck 'Verify' 'PASS' 'All SHA-256 hashes match.';Write-BpsCheck 'Hashes verified' 'INFO' ([string]$hc);Write-BpsCheck 'Integrity method' 'INFO' 'SHA-256 + count + bytes'}else{Write-BpsCheck 'Verify' 'PASS' 'Legacy count/byte verification passed.';Write-BpsCheck 'Integrity method' 'INFO' 'Legacy count + bytes'};Write-BpsCheck 'Files verified' 'INFO' ([string]$fc);Write-BpsCheck 'Data verified' 'INFO' (Format-BpsSize $bc);return 0}
-function Get-BpsBackupInventory {
+function Get-BpsBackupInventory{$base=Get-BpsBackupRoot;if([string]::IsNullOrWhiteSpace($base)-or-not(Test-Path -LiteralPath $base -PathType Container)){return @()};$rows=@();foreach($dir in @(Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue|Sort-Object Name -Descending)){$mp=Join-Path $dir.FullName 'manifest.json';$ip=Join-Path $dir.FullName 'manifest.incomplete.json';if(Test-Path -LiteralPath $mp -PathType Leaf){try{$m=Get-Content -LiteralPath $mp -Raw -Encoding UTF8|ConvertFrom-Json;$rows+=[pscustomobject]@{Name=$dir.Name;Path=$dir.FullName;Version=[string]$m.ApplicationVersion;Integrity=[string]$m.Verification;Files=[int64]$m.TotalFiles;Bytes=[int64]$m.TotalBytes;Status=[string]$m.Status;Timestamp=$dir.LastWriteTime}}catch{$rows+=[pscustomobject]@{Name=$dir.Name;Path=$dir.FullName;Version='?';Integrity='?';Files=0;Bytes=0;Status='Invalid manifest';Timestamp=$dir.LastWriteTime}}}elseif(Test-Path -LiteralPath $ip -PathType Leaf){$rows+=[pscustomobject]@{Name=$dir.Name;Path=$dir.FullName;Version='?';Integrity='?';Files=0;Bytes=0;Status='Incomplete';Timestamp=$dir.LastWriteTime}}};return @($rows|Sort-Object Timestamp -Descending)}
+function Invoke-BpsList{Write-BpsHeader;Write-Host 'Backups';Write-Host '-------' -ForegroundColor DarkGray;$base=Get-BpsBackupRoot;if([string]::IsNullOrWhiteSpace($base)){Write-BpsCheck 'Backup root' 'FAIL' 'No persistent backup destination is configured.';return 50};Write-BpsCheck 'Backup root' 'INFO' $base;$rows=@(Get-BpsBackupInventory);if(!$rows.Count){Write-BpsCheck 'Backups' 'WARN' 'No BrowserProfileSync backups found.';return 0};foreach($x in $rows){Write-BpsCheck $x.Name $(if($x.Status-eq'Complete'){'PASS'}else{'WARN'}) "Version $($x.Version) | $($x.Integrity) | $($x.Files) files | $(Format-BpsSize $x.Bytes) | $($x.Status)"};Write-BpsCheck 'Backups found' 'INFO' ([string]$rows.Count);return 0}
+function Invoke-BpsStatus{Write-BpsHeader;Write-Host 'Status';Write-Host '------' -ForegroundColor DarkGray;$base=Get-BpsBackupRoot;if([string]::IsNullOrWhiteSpace($base)){Write-BpsCheck 'Backup root' 'WARN' 'Not configured.';$rows=@()}else{Write-BpsCheck 'Backup root' 'INFO' $base;$rows=@(Get-BpsBackupInventory)};Write-BpsCheck 'Backups' 'INFO' ([string]$rows.Count);if($rows.Count){$latest=$rows[0];Write-BpsCheck 'Latest' $(if($latest.Status-eq'Complete'){'PASS'}else{'WARN'}) $latest.Name;Write-BpsCheck 'Latest version' 'INFO' $latest.Version;Write-BpsCheck 'Latest integrity' 'INFO' $latest.Integrity;Write-BpsCheck 'Latest files' 'INFO' ([string]$latest.Files);Write-BpsCheck 'Latest size' 'INFO' (Format-BpsSize $latest.Bytes)}else{Write-BpsCheck 'Latest' 'WARN' 'No backup found.'};$running=@(Get-BpsRunningBrowserSummary);if($running.Count){Write-BpsCheck 'Browser state' 'WARN' 'Supported browser processes are running.';foreach($x in $running){Write-BpsCheck "  $($x.Name)" 'INFO' "$($x.Count) process(es)"};Write-BpsCheck 'Next backup' 'WARN' 'BLOCKED'}else{Write-BpsCheck 'Browser state' 'PASS' 'No supported browser processes are running.';if([string]::IsNullOrWhiteSpace($base)){Write-BpsCheck 'Next backup' 'WARN' 'BLOCKED: configure backup root.'}else{Write-BpsCheck 'Next backup' 'PASS' 'READY'}};return 0}
+function Invoke-BpsRetention {
+    Write-BpsHeader
+    Write-Host 'Retention'
+    Write-Host '---------' -ForegroundColor DarkGray
+
     $base=Get-BpsBackupRoot
-    if([string]::IsNullOrWhiteSpace($base)-or-not(Test-Path -LiteralPath $base -PathType Container)){return @()}
-    $rows=@()
-    foreach($dir in @(Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue|Sort-Object Name -Descending)){
-        $mp=Join-Path $dir.FullName 'manifest.json'
-        $ip=Join-Path $dir.FullName 'manifest.incomplete.json'
-        if(Test-Path -LiteralPath $mp -PathType Leaf){
-            try{$m=Get-Content -LiteralPath $mp -Raw -Encoding UTF8|ConvertFrom-Json;$rows+=[pscustomobject]@{Name=$dir.Name;Path=$dir.FullName;Version=[string]$m.ApplicationVersion;Integrity=[string]$m.Verification;Files=[int64]$m.TotalFiles;Bytes=[int64]$m.TotalBytes;Status=[string]$m.Status;Timestamp=$dir.LastWriteTime}}catch{$rows+=[pscustomobject]@{Name=$dir.Name;Path=$dir.FullName;Version='?';Integrity='?';Files=0;Bytes=0;Status='Invalid manifest';Timestamp=$dir.LastWriteTime}}
-        }elseif(Test-Path -LiteralPath $ip -PathType Leaf){$rows+=[pscustomobject]@{Name=$dir.Name;Path=$dir.FullName;Version='?';Integrity='?';Files=0;Bytes=0;Status='Incomplete';Timestamp=$dir.LastWriteTime}}
+    if([string]::IsNullOrWhiteSpace($base)-or-not(Test-Path -LiteralPath $base -PathType Container)){
+        Write-BpsCheck 'Backup root' 'FAIL' 'No valid configured backup root.'
+        return 60
     }
-    return @($rows|Sort-Object Timestamp -Descending)
-}
-function Invoke-BpsList {
-    Write-BpsHeader;Write-Host 'Backups';Write-Host '-------' -ForegroundColor DarkGray
-    $base=Get-BpsBackupRoot
-    if([string]::IsNullOrWhiteSpace($base)){Write-BpsCheck 'Backup root' 'FAIL' 'No persistent backup destination is configured.';return 50}
-    Write-BpsCheck 'Backup root' 'INFO' $base
+
+    $resolvedBase=(Resolve-Path -LiteralPath $base).Path.TrimEnd('\')
+    $mode=if($Apply){'APPLY - eligible backup directories will be deleted.'}else{'SIMULATION ONLY - nothing will be deleted.'}
+    Write-BpsCheck 'Mode' $(if($Apply){'WARN'}else{'INFO'}) $mode
+    Write-BpsCheck 'Backup root' 'INFO' $resolvedBase
+    Write-BpsCheck 'Keep' 'INFO' ([string]$Keep)
+
     $rows=@(Get-BpsBackupInventory)
-    if(!$rows.Count){Write-BpsCheck 'Backups' 'WARN' 'No BrowserProfileSync backups found.';return 0}
-    foreach($x in $rows){Write-BpsCheck $x.Name $(if($x.Status-eq'Complete'){'PASS'}else{'WARN'}) "Version $($x.Version) | $($x.Integrity) | $($x.Files) files | $(Format-BpsSize $x.Bytes) | $($x.Status)"}
-    Write-BpsCheck 'Backups found' 'INFO' ([string]$rows.Count);return 0
-}
-function Invoke-BpsStatus {
-    Write-BpsHeader;Write-Host 'Status';Write-Host '------' -ForegroundColor DarkGray
-    $base=Get-BpsBackupRoot
-    if([string]::IsNullOrWhiteSpace($base)){Write-BpsCheck 'Backup root' 'WARN' 'Not configured.';$rows=@()}else{Write-BpsCheck 'Backup root' 'INFO' $base;$rows=@(Get-BpsBackupInventory)}
-    Write-BpsCheck 'Backups' 'INFO' ([string]$rows.Count)
-    if($rows.Count){$latest=$rows[0];Write-BpsCheck 'Latest' $(if($latest.Status-eq'Complete'){'PASS'}else{'WARN'}) $latest.Name;Write-BpsCheck 'Latest version' 'INFO' $latest.Version;Write-BpsCheck 'Latest integrity' 'INFO' $latest.Integrity;Write-BpsCheck 'Latest files' 'INFO' ([string]$latest.Files);Write-BpsCheck 'Latest size' 'INFO' (Format-BpsSize $latest.Bytes)}else{Write-BpsCheck 'Latest' 'WARN' 'No backup found.'}
-    $running=@(Get-BpsRunningBrowserSummary)
-    if($running.Count){Write-BpsCheck 'Browser state' 'WARN' 'Supported browser processes are running.';foreach($x in $running){Write-BpsCheck "  $($x.Name)" 'INFO' "$($x.Count) process(es)"};Write-BpsCheck 'Next backup' 'WARN' 'BLOCKED'}else{Write-BpsCheck 'Browser state' 'PASS' 'No supported browser processes are running.';if([string]::IsNullOrWhiteSpace($base)){Write-BpsCheck 'Next backup' 'WARN' 'BLOCKED: configure backup root.'}else{Write-BpsCheck 'Next backup' 'PASS' 'READY'}}
+    $complete=@($rows|Where-Object{$_.Status-eq'Complete'}|Sort-Object Timestamp -Descending)
+    $excluded=@($rows|Where-Object{$_.Status-ne'Complete'})
+    Write-BpsCheck 'Complete backups' 'INFO' ([string]$complete.Count)
+    if($excluded.Count){
+        Write-BpsCheck 'Excluded' 'WARN' "$($excluded.Count) incomplete/invalid backup(s) will never be selected."
+    }
+
+    if($complete.Count-le$Keep){
+        Write-BpsCheck 'Retention result' 'PASS' "Nothing to remove. Complete backups: $($complete.Count); Keep: $Keep."
+        Write-BpsCheck 'Deletion performed' 'PASS' 'NO'
+        return 0
+    }
+
+    $kept=@($complete|Select-Object -First $Keep)
+    $candidates=@($complete|Select-Object -Skip $Keep)
+    $latest=$complete[0]
+
+    Write-Host ''
+    Write-Host 'Will keep'
+    Write-Host '---------' -ForegroundColor DarkGray
+    foreach($x in $kept){
+        Write-BpsCheck $x.Name 'PASS' "Version $($x.Version) | $(Format-BpsSize $x.Bytes) | $($x.Integrity)"
+    }
+
+    Write-Host ''
+    Write-Host $(if($Apply){'Will remove'}else{'Would remove'})
+    Write-Host '-----------' -ForegroundColor DarkGray
+    foreach($x in $candidates){
+        Write-BpsCheck $x.Name 'WARN' "$(if($Apply){'APPLY'}else{'SIMULATION'}) | Version $($x.Version) | $(Format-BpsSize $x.Bytes) | $($x.Integrity)"
+    }
+
+    $sum=($candidates|Measure-Object Bytes -Sum).Sum
+    $potential=if($null-eq$sum){[int64]0}else{[int64]$sum}
+    Write-Host ''
+    Write-BpsCheck 'Candidates' 'INFO' ([string]$candidates.Count)
+    Write-BpsCheck 'Potential space reclaimed' 'INFO' (Format-BpsSize $potential)
+
+    if(-not$Apply){
+        Write-BpsCheck 'Deletion performed' 'PASS' 'NO - simulation mode.'
+        return 0
+    }
+
+    $validated=@()
+    foreach($candidate in $candidates){
+        $candidatePath=(Resolve-Path -LiteralPath $candidate.Path -ErrorAction Stop).Path.TrimEnd('\')
+        $parent=(Split-Path -Parent $candidatePath).TrimEnd('\')
+        $manifestPath=Join-Path $candidatePath 'manifest.json'
+
+        if($candidatePath-eq$resolvedBase){throw 'Safety check failed: candidate equals backup root.'}
+        if($parent-ne$resolvedBase){throw "Safety check failed: candidate is not a direct child of backup root: $candidatePath"}
+        if($candidatePath-eq$latest.Path.TrimEnd('\')){throw "Safety check failed: latest backup was selected: $candidatePath"}
+        if($candidate.Name-notmatch '^[A-Za-z0-9._-]+-[0-9]{8}-[0-9]{6}$'){throw "Safety check failed: unexpected backup directory name: $($candidate.Name)"}
+        if(-not(Test-Path -LiteralPath $manifestPath -PathType Leaf)){throw "Safety check failed: manifest.json missing: $candidatePath"}
+        $manifest=Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8|ConvertFrom-Json
+        if([string]$manifest.Status-ne'Complete'){throw "Safety check failed: manifest status is not Complete: $candidatePath"}
+        $validated+=$candidate
+    }
+
+    $removed=0
+    $removedBytes=[int64]0
+    foreach($candidate in $validated){
+        Write-BpsCheck $candidate.Name 'WARN' 'Deleting validated retention candidate...'
+        Remove-Item -LiteralPath $candidate.Path -Recurse -Force -ErrorAction Stop
+        if(Test-Path -LiteralPath $candidate.Path){throw "Deletion verification failed: $($candidate.Path)"}
+        $removed++
+        $removedBytes+=[int64]$candidate.Bytes
+        Write-BpsCheck $candidate.Name 'PASS' 'Deleted.'
+    }
+
+    $remaining=@(Get-BpsBackupInventory|Where-Object{$_.Status-eq'Complete'})
+    Write-Host ''
+    Write-BpsCheck 'Deletion performed' 'PASS' 'YES'
+    Write-BpsCheck 'Backups removed' 'INFO' ([string]$removed)
+    Write-BpsCheck 'Recorded data removed' 'INFO' (Format-BpsSize $removedBytes)
+    Write-BpsCheck 'Complete backups remaining' 'INFO' ([string]$remaining.Count)
     return 0
 }
-function Show-BpsHelp{Write-BpsHeader;Write-Host 'doctor | config [-Destination path] | backup [-Destination path] | verify -Backup path | list | status | help'}
-try{switch($Command){doctor{Invoke-BpsDoctor;exit 0}config{$c=Invoke-BpsConfig;exit $c}backup{$c=Invoke-BpsBackup;exit $c}verify{$c=Invoke-BpsVerify;exit $c}list{$c=Invoke-BpsList;exit $c}status{$c=Invoke-BpsStatus;exit $c}help{Show-BpsHelp;exit 0}}}catch{Write-Host $_.Exception.Message -ForegroundColor Red;exit 1}
+function Show-BpsHelp{Write-BpsHeader;Write-Host 'doctor | config [-Destination path] | backup [-Destination path] | verify -Backup path | list | status | retention [-Keep N] [-Apply] | help'}
+try{switch($Command){doctor{Invoke-BpsDoctor;exit 0}config{$c=Invoke-BpsConfig;exit $c}backup{$c=Invoke-BpsBackup;exit $c}verify{$c=Invoke-BpsVerify;exit $c}list{$c=Invoke-BpsList;exit $c}status{$c=Invoke-BpsStatus;exit $c}retention{$c=Invoke-BpsRetention;exit $c}help{Show-BpsHelp;exit 0}}}catch{Write-Host $_.Exception.Message -ForegroundColor Red;exit 1}

@@ -1,26 +1,34 @@
-# BrowserProfileSync 0.2.4
+# BrowserProfileSync 0.2.6
 
-Adiciona os comandos de administracao `list` e `status`, mantendo Doctor, configuracao persistente, backup SHA-256 e verify.
+Adiciona retencao real, habilitada somente quando `-Apply` for informado explicitamente.
 
-## Listar backups
+## Simulacao padrao
+Mantem 3 backups completos e nao apaga nada:
 ```powershell
-pwsh -File .\BrowserProfileSync.ps1 list
+pwsh -File .\BrowserProfileSync.ps1 retention
 ```
-Le o destino configurado e os `manifest.json`, mostrando versao que criou o backup, metodo de integridade, arquivos, tamanho e status. Pastas com `manifest.incomplete.json` sao marcadas como incompletas.
 
-## Ver status rapido
+## Simulacao mantendo apenas 1
 ```powershell
-pwsh -File .\BrowserProfileSync.ps1 status
+pwsh -File .\BrowserProfileSync.ps1 retention -Keep 1
 ```
-Mostra raiz configurada, quantidade de backups encontrados, backup mais recente, metodo de integridade, tamanho e estado dos processos Edge/Chrome/Vivaldi. `Next backup` fica READY somente se houver destino configurado e nenhum navegador suportado estiver rodando.
 
-## Comandos
-```text
-doctor
-config [-Destination caminho]
-backup [-Destination caminho]
-verify -Backup caminho
-list
-status
-help
+## Aplicar a retencao
+O comando abaixo mantem o backup completo mais recente e exclui os completos mais antigos:
+```powershell
+pwsh -File .\BrowserProfileSync.ps1 retention -Keep 1 -Apply
 ```
+
+## Travas de seguranca
+- Sem `-Apply`, nunca exclui nada.
+- `Keep` aceita somente valores de 1 a 999.
+- Nunca seleciona o backup completo mais recente.
+- Somente backups com `manifest.json` legivel e `Status=Complete` entram na retencao.
+- Backups incompletos ou invalidos sao ignorados.
+- Cada candidato deve ser filho direto do BackupRoot configurado.
+- O nome do diretorio deve terminar em `-yyyyMMdd-HHmmss`.
+- O BackupRoot nunca pode ser candidato.
+- Apos `Remove-Item`, o script confirma que o diretorio deixou de existir.
+- O inventario e executado novamente para informar quantos backups completos restaram.
+
+Teste primeiro sem `-Apply`. Use `-Apply` somente depois de conferir as secoes `Will keep` e `Will remove`.
