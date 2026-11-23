@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "projectName": "BrowserProfileSync",
+  "createdAt": "2026-11-23T00:12:17.8430864-03:00",
+  "createdBy": "DevContext 0.3.1",
+  "contextModel": "Personal-Enterprise",
+  "repositoryMode": "Monorepo",
+  "repository": {
+    "identity": "Personal",
+    "gitHubAccount": "wilsonpilon",
+    "sshAlias": "github.com-pessoal",
+    "userName": "Wilson Pilon",
+    "userEmail": "wilsonpilon@outlook.com"
+  },
+  "copilot": {
+    "identity": "Enterprise",
+    "account": "wilsonbarney",
+    "provider": "GitHub",
+    "automaticAccountSwitch": false
+  },
+  "microsoft365Copilot": {
+    "enabled": true,
+    "automaticContextTransfer": false
+  },
+  "isolation": {
+    "required": false
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "window.title": "BrowserProfileSync [GIT PERSONAL | COPILOT ENTERPRISE]",
+    "workbench.colorCustomizations": {
+      "titleBar.activeBackground": "#6F42C1",
+      "titleBar.activeForeground": "#FFFFFF",
+      "statusBar.background": "#6F42C1",
+      "statusBar.foreground": "#FFFFFF"
+    },
+    "powershell.powerShellDefaultVersion": "PowerShell 7",
+    "files.encoding": "utf8"
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-vscode.powershell",
+      "github.copilot",
+      "github.copilot-chat"
+    ]
+  }
+}
