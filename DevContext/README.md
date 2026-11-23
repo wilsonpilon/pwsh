@@ -1,33 +1,20 @@
-# DevContext 0.1
+# DevContext 0.1.2
 
-Primeira versao do diagnostico nao destrutivo para o ambiente de desenvolvimento.
+Doctor nao destrutivo para PowerShell 7 / Windows.
 
-## Objetivos desta versao
-- Exigir PowerShell 7+.
-- Detectar Git, GitHub CLI (`gh`), VS Code (`code`), OpenSSH, Git Credential Manager e Copilot CLI quando disponiveis.
-- Exibir `gh auth status` sem copiar tokens para arquivos do projeto.
-- Descobrir os roots previstos: `C:\dos\pwsh`, `D:\dos\pwsh`, `E:\pwsh` e equivalentes `extra`.
-- Criar apenas configuracao local em `%LOCALAPPDATA%\DevContext`.
-- Reservar identidades `Personal`, `Enterprise` e `Extra`, deixando `Extra` marcado como isolado.
+Melhorias da 0.1.2:
+- `E:\pwsh` passa a ser ProjectRoot, sem duplicacao Personal/Enterprise.
+- ExtraRoot permanece separado.
+- Leitura estrutural de `~/.ssh/config`: Host, HostName, User e IdentityFile. O conteudo das chaves privadas nunca e lido.
+- `gh auth status` passa a ser convertido em contas estruturadas e tokens nao sao registrados.
+- Git Credential Manager e reconhecido pela configuracao `credential.helper=manager`.
+- VS Code cruza `code --list-extensions` com `~/.vscode/extensions` e lista profiles fisicos.
+- Copilot CLI identifica origem VSCodeShim.
+- Readiness fornece `READY_FOR_IDENTITY_SETUP` quando o ambiente basico esta pronto.
 
-## Execucao
-```powershell
-pwsh -File .\DevContext.ps1 doctor
-```
+Uso:
 
-Saida JSON para diagnostico/testes:
-```powershell
-pwsh -File .\DevContext.ps1 doctor -Json
-```
+    pwsh -File .\DevContext.ps1 doctor
+    pwsh -File .\DevContext.ps1 doctor -Json
 
-Outros comandos iniciais:
-```powershell
-pwsh -File .\DevContext.ps1 config
-pwsh -File .\DevContext.ps1 identities
-```
-
-## Importante
-A versao 0.1 nao altera configuracoes de Git, VS Code, SSH ou Copilot. Ela somente diagnostica o ambiente e cria os arquivos locais basicos do DevContext.
-
-## 0.1.1
-Evolucao do doctor a partir do teste real no XPS: Git global/local, helper de credenciais, repositorio atual, perfis/extensoes do VS Code, SSH e classificacao do Copilot CLI.
+A 0.1.2 continua em modo somente leitura para Git, GitHub, SSH, VS Code e Copilot. Somente `%LOCALAPPDATA%\DevContext` pode ser criado/atualizado para configuracao do proprio DevContext.
