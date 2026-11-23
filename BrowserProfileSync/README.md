@@ -1,27 +1,16 @@
-# BrowserProfileSync 0.2.2
+# BrowserProfileSync 0.2.3
 
-Adiciona configuracao persistente do destino de backup.
+Novos backups gravam SHA-256 por arquivo no manifest.json. Backups antigos continuam verificaveis pelo metodo legado de contagem de arquivos e bytes.
 
-## Configurar uma vez
-```powershell
-pwsh -File .\BrowserProfileSync.ps1 config -Destination D:\BrowserProfileSync
-```
-
-O arquivo e salvo em `%APPDATA%\BrowserProfileSync\config.json`. O diretorio de destino deve existir. A configuracao nunca pode apontar para dentro de `User Data` de Edge, Chrome ou Vivaldi.
-
-## Consultar a configuracao
-```powershell
-pwsh -File .\BrowserProfileSync.ps1 config
-```
-
-## Backup usando a configuracao
+## Novo backup
+Feche Edge/Vivaldi e execute:
 ```powershell
 pwsh -File .\BrowserProfileSync.ps1 backup
 ```
 
-`backup -Destination <pasta>` continua disponivel e tem prioridade sobre a configuracao persistente.
-
 ## Verify
 ```powershell
-pwsh -File .\BrowserProfileSync.ps1 verify -Backup D:\BrowserProfileSync\XPS-20261123-132616
+pwsh -File .\BrowserProfileSync.ps1 verify -Backup D:\BrowserProfileSync\XPS-YYYYMMDD-HHMMSS
 ```
+
+Para backup 0.2.3, o resultado deve informar `SHA-256 + count + bytes` e aproximadamente 8.939 hashes no ambiente XPS atual.
