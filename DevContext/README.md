@@ -15,3 +15,6 @@ pwsh -File .\DevContext.ps1 identity-verify -Json
 Estados: PASS, SSH_FAILED, IDENTITY_MISMATCH, ISOLATION_FAILED, NOT_CONFIGURED. O global so sera VERIFIED se todos os testes solicitados retornarem PASS.
 
 Importante: o GitHub normalmente retorna exit code 1 em `ssh -T` mesmo apos autenticar, pois nao oferece shell. A verificacao usa a mensagem autenticada.
+
+## Correcao de parser
+Corrigido `return$v.Trim()` para `return $v.Trim()` e normalizadas chamadas de funcoes que haviam sido excessivamente compactadas.
