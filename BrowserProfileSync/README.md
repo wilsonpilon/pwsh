@@ -1,16 +1,26 @@
-# BrowserProfileSync 0.2.3
+# BrowserProfileSync 0.2.4
 
-Novos backups gravam SHA-256 por arquivo no manifest.json. Backups antigos continuam verificaveis pelo metodo legado de contagem de arquivos e bytes.
+Adiciona os comandos de administracao `list` e `status`, mantendo Doctor, configuracao persistente, backup SHA-256 e verify.
 
-## Novo backup
-Feche Edge/Vivaldi e execute:
+## Listar backups
 ```powershell
-pwsh -File .\BrowserProfileSync.ps1 backup
+pwsh -File .\BrowserProfileSync.ps1 list
 ```
+Le o destino configurado e os `manifest.json`, mostrando versao que criou o backup, metodo de integridade, arquivos, tamanho e status. Pastas com `manifest.incomplete.json` sao marcadas como incompletas.
 
-## Verify
+## Ver status rapido
 ```powershell
-pwsh -File .\BrowserProfileSync.ps1 verify -Backup D:\BrowserProfileSync\XPS-YYYYMMDD-HHMMSS
+pwsh -File .\BrowserProfileSync.ps1 status
 ```
+Mostra raiz configurada, quantidade de backups encontrados, backup mais recente, metodo de integridade, tamanho e estado dos processos Edge/Chrome/Vivaldi. `Next backup` fica READY somente se houver destino configurado e nenhum navegador suportado estiver rodando.
 
-Para backup 0.2.3, o resultado deve informar `SHA-256 + count + bytes` e aproximadamente 8.939 hashes no ambiente XPS atual.
+## Comandos
+```text
+doctor
+config [-Destination caminho]
+backup [-Destination caminho]
+verify -Backup caminho
+list
+status
+help
+```
