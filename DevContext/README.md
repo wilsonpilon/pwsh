@@ -1,36 +1,17 @@
-# DevContext 0.2.0 - Identity Setup
+# DevContext 0.2.1
 
-Inclui o Doctor 0.1.2 e o cadastro local das identidades Personal, Enterprise e Extra.
+Versao completa contendo: doctor, status, config, identities, identity-setup, identity-test e identity-verify.
 
-## Comandos
+## Identity verify
 
 ```powershell
-pwsh -File .\DevContext.ps1 doctor -Json
-pwsh -File .\DevContext.ps1 identity-setup
-pwsh -File .\DevContext.ps1 identity-setup -Identity Personal
-pwsh -File .\DevContext.ps1 identities
-pwsh -File .\DevContext.ps1 identity-test
-pwsh -File .\DevContext.ps1 identity-test -Json
+pwsh -File .\DevContext.ps1 identity-verify
+pwsh -File .\DevContext.ps1 identity-verify -Identity Enterprise
+pwsh -File .\DevContext.ps1 identity-verify -Json
 ```
 
-## O que e armazenado
+`identity-verify` executa SSH em `BatchMode=yes`, compara o cumprimento `Hi <account>!` do GitHub com `githubAccount` e tambem exige `isolated=true` para Extra. Nao faz push e nao altera Git, SSH, GitHub ou VS Code.
 
-- `user.name` e `user.email` pretendidos para cada contexto;
-- alias SSH do GitHub;
-- nome da conta GitHub;
-- conta GitHub Copilot pretendida;
-- disponibilidade planejada do Microsoft 365 Copilot;
-- isolamento obrigatorio de Extra.
+Estados: PASS, SSH_FAILED, IDENTITY_MISMATCH, ISOLATION_FAILED, NOT_CONFIGURED. O global so sera VERIFIED se todos os testes solicitados retornarem PASS.
 
-## O que nao e armazenado
-
-- senhas;
-- PATs;
-- tokens OAuth;
-- cookies;
-- conteudo de chaves privadas;
-- sessoes do VS Code ou GitHub CLI.
-
-O arquivo fica em `%LOCALAPPDATA%\DevContext\identities.json`. Se existir o formato antigo da 0.1, ele e preservado com sufixo `.legacy-AAAAmmdd-HHmmss.json` antes da migracao.
-
-A versao 0.2.0 cadastra a intencao das identidades, mas ainda nao altera Git, remotes, VS Code ou contas Copilot. Essas alteracoes pertencerao ao futuro comando `dev new`.
+Importante: o GitHub normalmente retorna exit code 1 em `ssh -T` mesmo apos autenticar, pois nao oferece shell. A verificacao usa a mensagem autenticada.
