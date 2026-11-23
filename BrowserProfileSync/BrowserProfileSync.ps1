@@ -1,14 +1,14 @@
 #requires -Version 7.0
 [CmdletBinding()]
 param(
- [Parameter(Position=0)][ValidateSet('doctor','backup','verify','help')][string]$Command='help',
+ [Parameter(Position=0)][ValidateSet('doctor','backup','verify','config','help')][string]$Command='help',
  [string]$Destination,
  [string]$Backup
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $Script:AppName='BrowserProfileSync'
-$Script:Version='0.2.1'
+$Script:Version='0.2.2'
 function Write-BpsHeader{Write-Host '';Write-Host "$Script:AppName $Script:Version" -ForegroundColor Cyan;Write-Host ('='*60) -ForegroundColor DarkGray;Write-Host ''}
 function Write-BpsCheck{param([string]$Name,[ValidateSet('PASS','WARN','FAIL','INFO')][string]$Result,[string]$Detail='');$c=switch($Result){PASS{'Green'}WARN{'Yellow'}FAIL{'Red'}INFO{'Cyan'}};Write-Host ('{0,-40}'-f$Name) -NoNewline;Write-Host ('{0,-8}'-f"[$Result]") -ForegroundColor $c;if(-not[string]::IsNullOrWhiteSpace($Detail)){Write-Host (' '*42+$Detail) -ForegroundColor DarkGray}}
 function Format-BpsSize{param([int64]$Bytes);if($Bytes-ge 1GB){'{0:N2} GB'-f($Bytes/1GB)}elseif($Bytes-ge 1MB){'{0:N2} MB'-f($Bytes/1MB)}elseif($Bytes-ge 1KB){'{0:N2} KB'-f($Bytes/1KB)}else{"$Bytes B"}}
@@ -18,8 +18,48 @@ function Get-BpsRunningBrowserSummary{$r=@();foreach($b in @('Edge','Chrome','Vi
 function Get-BpsBackupItems{param($Profile);$r=@();foreach($x in @('IndexedDB','Local Storage','Session Storage','WebStorage','Service Worker','Network\Cookies','History','Login Data','Web Data','Favicons','Preferences','Secure Preferences')){$src=Join-Path $Profile.Path $x;if(Test-Path -LiteralPath $src){$r+=[pscustomobject]@{RelativePath=$x;Source=$src}}};@($r)}
 function Get-BpsTreeMetrics{param([string]$Path);if(Test-Path -LiteralPath $Path -PathType Leaf){$f=Get-Item -LiteralPath $Path;return [pscustomobject]@{Files=[int64]1;Bytes=[int64]$f.Length}};$m=Get-ChildItem -LiteralPath $Path -File -Recurse -Force -ErrorAction Stop|Measure-Object Length -Sum;[pscustomobject]@{Files=[int64]$m.Count;Bytes=[int64]$(if($null-eq$m.Sum){0}else{$m.Sum})}}
 function Copy-BpsItemVerified{param([string]$Source,[string]$Target);$parent=Split-Path -Parent $Target;if(-not(Test-Path -LiteralPath $parent)){New-Item -ItemType Directory -Path $parent -Force|Out-Null};if(Test-Path -LiteralPath $Source -PathType Container){New-Item -ItemType Directory -Path $Target -Force|Out-Null;Get-ChildItem -LiteralPath $Source -Force|Copy-Item -Destination $Target -Recurse -Force -ErrorAction Stop}else{Copy-Item -LiteralPath $Source -Destination $Target -Force -ErrorAction Stop};$a=Get-BpsTreeMetrics $Source;$b=Get-BpsTreeMetrics $Target;if($a.Files-ne$b.Files-or$a.Bytes-ne$b.Bytes){throw "Verification failed: $Source"};$b}
+
+function Get-BpsConfigPath {
+    $root = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'BrowserProfileSync'
+    return (Join-Path $root 'config.json')
+}
+function Get-BpsConfig {
+    $path = Get-BpsConfigPath
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    try { return (Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json) }
+    catch { throw "Invalid configuration file: $path | $($_.Exception.Message)" }
+}
+function Get-BpsBackupRoot {
+    if (-not [string]::IsNullOrWhiteSpace($Destination)) { return $Destination }
+    $cfg = Get-BpsConfig
+    if ($null -ne $cfg -and -not [string]::IsNullOrWhiteSpace([string]$cfg.BackupRoot)) { return [string]$cfg.BackupRoot }
+    return $null
+}
+function Invoke-BpsConfig {
+    Write-BpsHeader
+    Write-Host 'Config'
+    Write-Host '------' -ForegroundColor DarkGray
+    if ([string]::IsNullOrWhiteSpace($Destination)) {
+        $cfg = Get-BpsConfig
+        if ($null -eq $cfg) { Write-BpsCheck 'Configuration' 'WARN' 'No persistent configuration found.'; Write-BpsCheck 'Config path' 'INFO' (Get-BpsConfigPath); return 40 }
+        Write-BpsCheck 'Configuration' 'PASS' 'Persistent configuration loaded.'
+        Write-BpsCheck 'Backup root' 'INFO' ([string]$cfg.BackupRoot)
+        Write-BpsCheck 'Config path' 'INFO' (Get-BpsConfigPath)
+        return 0
+    }
+    if (-not (Test-Path -LiteralPath $Destination -PathType Container)) { Write-BpsCheck 'Configuration' 'FAIL' "Destination folder does not exist: $Destination"; return 41 }
+    $resolved=(Resolve-Path -LiteralPath $Destination).Path
+    foreach($b in @('Edge','Chrome','Vivaldi')) { $i=Get-BpsBrowserInfo $b; if($i.UserDataExists -and $resolved.StartsWith($i.UserData,[StringComparison]::OrdinalIgnoreCase)) { Write-BpsCheck 'Configuration' 'FAIL' 'Backup root cannot be inside browser User Data.'; return 42 } }
+    $path=Get-BpsConfigPath; $dir=Split-Path -Parent $path
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    [ordered]@{SchemaVersion=1;Application=$Script:AppName;ApplicationVersion=$Script:Version;BackupRoot=$resolved;Verification='FileCountAndByteCount';Browsers=@('Edge','Vivaldi');UpdatedUtc=(Get-Date).ToUniversalTime().ToString('o')} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $path -Encoding UTF8
+    Write-BpsCheck 'Configuration' 'PASS' 'Persistent configuration saved.'
+    Write-BpsCheck 'Backup root' 'INFO' $resolved
+    Write-BpsCheck 'Config path' 'INFO' $path
+    return 0
+}
 function Invoke-BpsDoctor{Write-BpsHeader;$run=@(Get-BpsRunningBrowserSummary);foreach($b in @('Edge','Chrome','Vivaldi')){$i=Get-BpsBrowserInfo $b;if($i.Executable){Write-BpsCheck $i.Name 'PASS' "Version $($i.Version) | $($i.Executable)"}else{Write-BpsCheck $i.Name 'WARN' 'Browser not detected.'}};if($run.Count){Write-BpsCheck 'Backup readiness' 'WARN' 'BLOCKED: close supported browsers before backup.'}else{Write-BpsCheck 'Backup readiness' 'PASS' 'READY: no supported browser processes are running.'}}
-function Invoke-BpsBackup{Write-BpsHeader;$run=@(Get-BpsRunningBrowserSummary);if($run.Count){Write-BpsCheck 'Backup' 'FAIL' 'BLOCKED: close all supported browsers and try again.';return 20};if([string]::IsNullOrWhiteSpace($Destination)-or-not(Test-Path -LiteralPath $Destination -PathType Container)){Write-BpsCheck 'Backup location' 'FAIL' 'Use -Destination with an existing folder.';return 21};$base=(Resolve-Path -LiteralPath $Destination).Path;$root=Join-Path $base "$([Environment]::MachineName)-$(Get-Date -Format 'yyyyMMdd-HHmmss')";New-Item -ItemType Directory $root|Out-Null;$started=(Get-Date).ToUniversalTime();$entries=@();$files=[int64]0;$bytes=[int64]0;try{foreach($b in @('Edge','Chrome','Vivaldi')){$i=Get-BpsBrowserInfo $b;if(-not$i.UserDataExists){continue};$bn=$i.Name-replace'[^A-Za-z0-9._-]','_';$br=Join-Path $root "Browsers\$bn";$ls=Join-Path $i.UserData 'Local State';if(Test-Path -LiteralPath $ls){$t=Join-Path $br 'Local State';$m=Copy-BpsItemVerified $ls $t;$files+=$m.Files;$bytes+=$m.Bytes;$entries+=[pscustomobject]@{Browser=$i.Name;Profile=$null;Item='Local State';Source=$ls;Target=$t;Files=$m.Files;Bytes=$m.Bytes;Verified=$true}};foreach($p in @(Get-BpsBrowserProfiles $b)){foreach($x in @(Get-BpsBackupItems $p)){$t=Join-Path $br "Profiles\$($p.DirectoryName)\$($x.RelativePath)";$m=Copy-BpsItemVerified $x.Source $t;$files+=$m.Files;$bytes+=$m.Bytes;$entries+=[pscustomobject]@{Browser=$i.Name;Profile=$p.DirectoryName;FriendlyName=$p.FriendlyName;Item=$x.RelativePath;Source=$x.Source;Target=$t;Files=$m.Files;Bytes=$m.Bytes;Verified=$true}}}};$man=[ordered]@{SchemaVersion=1;Application=$Script:AppName;ApplicationVersion=$Script:Version;Computer=[Environment]::MachineName;StartedUtc=$started.ToString('o');CompletedUtc=(Get-Date).ToUniversalTime().ToString('o');BackupRoot=$root;Status='Complete';Verification='FileCountAndByteCount';TotalFiles=$files;TotalBytes=$bytes;Items=$entries};$mp=Join-Path $root 'manifest.json';$man|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $mp -Encoding UTF8;Write-BpsCheck 'Backup' 'PASS' 'Backup completed and verified.';Write-BpsCheck 'Backup folder' 'INFO' $root;Write-BpsCheck 'Files copied' 'INFO' ([string]$files);Write-BpsCheck 'Data copied' 'INFO' (Format-BpsSize $bytes);Write-BpsCheck 'Manifest' 'PASS' $mp;return 0}catch{Write-BpsCheck 'Backup' 'FAIL' $_.Exception.Message;return 25}}
+function Invoke-BpsBackup{Write-BpsHeader;$run=@(Get-BpsRunningBrowserSummary);if($run.Count){Write-BpsCheck 'Backup' 'FAIL' 'BLOCKED: close all supported browsers and try again.';return 20};$backupRoot=Get-BpsBackupRoot;if([string]::IsNullOrWhiteSpace($backupRoot)-or-not(Test-Path -LiteralPath $backupRoot -PathType Container)){Write-BpsCheck 'Backup location' 'FAIL' 'Configure with config -Destination <folder> or use backup -Destination <folder>.';return 21};$base=(Resolve-Path -LiteralPath $backupRoot).Path;$root=Join-Path $base "$([Environment]::MachineName)-$(Get-Date -Format 'yyyyMMdd-HHmmss')";New-Item -ItemType Directory $root|Out-Null;$started=(Get-Date).ToUniversalTime();$entries=@();$files=[int64]0;$bytes=[int64]0;try{foreach($b in @('Edge','Chrome','Vivaldi')){$i=Get-BpsBrowserInfo $b;if(-not$i.UserDataExists){continue};$bn=$i.Name-replace'[^A-Za-z0-9._-]','_';$br=Join-Path $root "Browsers\$bn";$ls=Join-Path $i.UserData 'Local State';if(Test-Path -LiteralPath $ls){$t=Join-Path $br 'Local State';$m=Copy-BpsItemVerified $ls $t;$files+=$m.Files;$bytes+=$m.Bytes;$entries+=[pscustomobject]@{Browser=$i.Name;Profile=$null;Item='Local State';Source=$ls;Target=$t;Files=$m.Files;Bytes=$m.Bytes;Verified=$true}};foreach($p in @(Get-BpsBrowserProfiles $b)){foreach($x in @(Get-BpsBackupItems $p)){$t=Join-Path $br "Profiles\$($p.DirectoryName)\$($x.RelativePath)";$m=Copy-BpsItemVerified $x.Source $t;$files+=$m.Files;$bytes+=$m.Bytes;$entries+=[pscustomobject]@{Browser=$i.Name;Profile=$p.DirectoryName;FriendlyName=$p.FriendlyName;Item=$x.RelativePath;Source=$x.Source;Target=$t;Files=$m.Files;Bytes=$m.Bytes;Verified=$true}}}};$man=[ordered]@{SchemaVersion=1;Application=$Script:AppName;ApplicationVersion=$Script:Version;Computer=[Environment]::MachineName;StartedUtc=$started.ToString('o');CompletedUtc=(Get-Date).ToUniversalTime().ToString('o');BackupRoot=$root;Status='Complete';Verification='FileCountAndByteCount';TotalFiles=$files;TotalBytes=$bytes;Items=$entries};$mp=Join-Path $root 'manifest.json';$man|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $mp -Encoding UTF8;Write-BpsCheck 'Backup' 'PASS' 'Backup completed and verified.';Write-BpsCheck 'Backup folder' 'INFO' $root;Write-BpsCheck 'Files copied' 'INFO' ([string]$files);Write-BpsCheck 'Data copied' 'INFO' (Format-BpsSize $bytes);Write-BpsCheck 'Manifest' 'PASS' $mp;return 0}catch{Write-BpsCheck 'Backup' 'FAIL' $_.Exception.Message;return 25}}
 function Invoke-BpsVerify{Write-BpsHeader;Write-Host 'Verify';Write-Host '------' -ForegroundColor DarkGray;if([string]::IsNullOrWhiteSpace($Backup)){Write-BpsCheck 'Verify' 'FAIL' 'Use -Backup <backup-folder>.';return 30};if(-not(Test-Path -LiteralPath $Backup -PathType Container)){Write-BpsCheck 'Verify' 'FAIL' "Backup folder does not exist: $Backup";return 31};$root=(Resolve-Path -LiteralPath $Backup).Path;$mp=Join-Path $root 'manifest.json';if(-not(Test-Path -LiteralPath $mp -PathType Leaf)){Write-BpsCheck 'Manifest' 'FAIL' 'manifest.json not found.';return 32};try{$m=Get-Content -LiteralPath $mp -Raw -Encoding UTF8|ConvertFrom-Json}catch{Write-BpsCheck 'Manifest' 'FAIL' $_.Exception.Message;return 33};if($m.Status-ne'Complete'){Write-BpsCheck 'Manifest' 'FAIL' "Backup status: $($m.Status)";return 34};Write-BpsCheck 'Manifest' 'PASS' $mp;Write-BpsCheck 'Backup source version' 'INFO' ([string]$m.ApplicationVersion);$bad=@();$checked=[int64]0;$size=[int64]0;foreach($item in @($m.Items)){$t=[string]$item.Target;if([string]::IsNullOrWhiteSpace($t)){$t=[string]$item.Destination};$rr=[string]$m.BackupRoot;if(-not[string]::IsNullOrWhiteSpace($rr)-and$t.StartsWith($rr,[StringComparison]::OrdinalIgnoreCase)){$rel=$t.Substring($rr.Length).TrimStart('\','/');$t=Join-Path $root $rel};if(-not(Test-Path -LiteralPath $t)){$bad+="Missing: $t";continue};$x=Get-BpsTreeMetrics $t;if($x.Files-ne[int64]$item.Files-or$x.Bytes-ne[int64]$item.Bytes){$bad+="Mismatch: $t";continue};$checked+=$x.Files;$size+=$x.Bytes};if($bad.Count){Write-BpsCheck 'Verify' 'FAIL' "$($bad.Count) problem(s) detected.";foreach($z in $bad|Select-Object -First 20){Write-BpsCheck '  Problem' 'WARN' $z};return 35};Write-BpsCheck 'Verify' 'PASS' 'All manifest items match stored file counts and byte counts.';Write-BpsCheck 'Files verified' 'INFO' ([string]$checked);Write-BpsCheck 'Data verified' 'INFO' (Format-BpsSize $size);Write-BpsCheck 'Integrity method' 'INFO' 'Manifest file-count + byte-count verification';return 0}
-function Show-BpsHelp{Write-BpsHeader;Write-Host '  doctor';Write-Host '  backup -Destination D:\BrowserProfileSync';Write-Host '  verify -Backup D:\BrowserProfileSync\XPS-yyyyMMdd-HHmmss';Write-Host '  help'}
-try{switch($Command){doctor{Invoke-BpsDoctor;exit 0}backup{$c=Invoke-BpsBackup;exit $c}verify{$c=Invoke-BpsVerify;exit $c}help{Show-BpsHelp;exit 0}}}catch{Write-Host $_.Exception.Message -ForegroundColor Red;exit 1}
+function Show-BpsHelp{Write-BpsHeader;Write-Host '  doctor';Write-Host '  config -Destination D:\BrowserProfileSync';Write-Host '  config';Write-Host '  backup';Write-Host '  backup -Destination D:\BrowserProfileSync';Write-Host '  verify -Backup D:\BrowserProfileSync\XPS-yyyyMMdd-HHmmss';Write-Host '  help'}
+try{switch($Command){doctor{Invoke-BpsDoctor;exit 0}config{$c=Invoke-BpsConfig;exit $c}backup{$c=Invoke-BpsBackup;exit $c}verify{$c=Invoke-BpsVerify;exit $c}help{Show-BpsHelp;exit 0}}}catch{Write-Host $_.Exception.Message -ForegroundColor Red;exit 1}
